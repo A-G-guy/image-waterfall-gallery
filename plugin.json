@@ -1,8 +1,8 @@
 {
-  "name": "plugin-sample",
+  "name": "image-waterfall-gallery",
   "author": "Vanessa",
-  "url": "https://github.com/siyuan-note/plugin-sample",
-  "version": "0.4.4",
+  "url": "https://github.com/siyuan-note/image-waterfall-gallery",
+  "version": "1.0.0",
   "minAppVersion": "3.5.1",
   "backends": [
     "windows",
@@ -24,12 +24,12 @@
   ],
   "disabledInPublish": false,
   "displayName": {
-    "default": "Plugin Sample",
-    "zh_CN": "插件示例"
+    "default": "Image Waterfall Gallery",
+    "zh_CN": "瀑布流画廊"
   },
   "description": {
-    "default": "This is a plugin development sample",
-    "zh_CN": "这是一个插件开发示例"
+    "default": "Automatically display images in waterfall layout for documents with #gallery tag",
+    "zh_CN": "为带有 #gallery 标签的文档自动以瀑布流形式展示图片"
   },
   "readme": {
     "default": "README.md",
@@ -44,8 +44,11 @@
     ]
   },
   "keywords": [
-    "开发者参考",
-    "developer reference",
-    "示例插件"
+    "gallery",
+    "waterfall",
+    "image",
+    "瀑布流",
+    "画廊",
+    "图片展示"
   ]
 }
