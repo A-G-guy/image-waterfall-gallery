@@ -895,7 +895,27 @@ export default class ImageWaterfallGallery extends Plugin {
 
         const img = document.createElement("img");
         img.src = imageInfo.src;
-        img.loading = "lazy";
+        img.alt = "图片预览";
+        // 移除 lazy loading 以确保图片立即加载
+
+        // 添加加载中状态
+        imgPreview.classList.add("loading");
+
+        // 添加加载成功处理
+        img.onload = () => {
+            console.log("[DEBUG] Image loaded successfully:", imageInfo.src);
+            imgPreview.classList.remove("loading");
+            imgPreview.classList.add("loaded");
+        };
+
+        // 添加加载失败处理
+        img.onerror = () => {
+            console.error("[DEBUG] Image failed to load:", imageInfo.src);
+            imgPreview.classList.remove("loading");
+            imgPreview.classList.add("error");
+            img.alt = "图片加载失败";
+        };
+
         img.onclick = () => {
             // 点击查看大图
             this.showLightbox(imageInfo.src, [imageInfo.src]);

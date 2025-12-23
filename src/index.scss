@@ -433,6 +433,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 
   img {
     width: 100%;
@@ -443,6 +444,36 @@
 
     &:hover {
       transform: scale(1.05);
+    }
+  }
+
+  &.loading {
+    &::before {
+      content: "加载中...";
+      position: absolute;
+      color: var(--b3-theme-on-background);
+      font-size: 14px;
+      z-index: 1;
+    }
+  }
+
+  &.error {
+    &::after {
+      content: "图片加载失败";
+      position: absolute;
+      color: var(--b3-theme-error);
+      font-size: 14px;
+      z-index: 1;
+    }
+
+    img {
+      opacity: 0.3;
+    }
+  }
+
+  &.loaded {
+    img {
+      animation: fadeIn 0.3s ease-in-out;
     }
   }
 }
