@@ -64,7 +64,9 @@
 ### 核心技术
 
 - **监听机制**：使用 `eventBus.on("switch-protyle")` 监听文档切换
-- **数据查询**：通过 SQL API 查询文档标签和图片块
+- **数据查询**：通过 SQL API 查询文档标签和图片
+  - 标签检测：查询 `blocks` 表的 `tag` 字段
+  - 图片提取：查询 `spans` 表中 `type='img'` 的行内元素
 - **布局方案**：CSS Multi-column 实现纯 CSS 瀑布流
 - **主题适配**：使用思源 CSS 变量（如 `var(--b3-theme-background)`）
 
@@ -107,6 +109,13 @@ npm run build
 - `package.zip` - 插件包
 
 ## 📝 更新日志
+
+### v1.0.1 (2025-12-24)
+
+- 🐛 **修复标签检测错误**：修正 SQL 查询，从 `attributes` 表改为 `blocks` 表的 `tag` 字段
+- 🐛 **修复图片提取错误**：修正 SQL 查询，从 `blocks` 表改为 `spans` 表查询 `type='img'` 的图片元素
+- 🐛 **修复 API 调用错误**：使用 `fetchSyncPost` 替代 `fetchPost`，解决插件无法启用的问题
+- 🔧 **增强调试功能**：添加详细的调试日志，便于问题排查
 
 ### v1.0.0 (2025-12-23)
 
