@@ -2,8 +2,17 @@ import {
     Plugin,
     showMessage,
     fetchSyncPost,
+    Setting,
+    getFrontend,
 } from "siyuan";
 import "./index.scss";
+
+const STORAGE_NAME = "gallery-settings";
+
+interface IGallerySettings {
+    imageOrder: "random" | "sequential" | "reverse";
+    imageWidth: number; // 图片宽度（像素）
+}
 
 /**
  * 瀑布流画廊插件
@@ -12,9 +21,17 @@ import "./index.scss";
 export default class ImageWaterfallGallery extends Plugin {
     private currentRootId: string = "";
     private galleryOverlay: HTMLElement | null = null;
+    private lightboxOverlay: HTMLElement | null = null;
+    private settings: IGallerySettings;
 
     async onload() {
         console.log("Loading Image Waterfall Gallery Plugin");
+
+        // 初始化设置
+        await this.loadSettings();
+
+        // 创建设置界面
+        this.initSettings();
 
         // 监听文档切换事件
         this.eventBus.on("switch-protyle", this.handleDocumentSwitch.bind(this));
@@ -24,6 +41,70 @@ export default class ImageWaterfallGallery extends Plugin {
         console.log("Unloading Image Waterfall Gallery Plugin");
         // 清理画廊覆盖层
         this.destroyGallery();
+        this.destroyLightbox();
+    }
+
+    /**
+     * 加载设置
+     */
+    private async loadSettings() {
+        // 检测平台
+        const frontend = getFrontend();
+        const isMobile = frontend === "mobile" || frontend === "browser-mobile";
+
+        // 根据平台设置默认图片宽度
+        const defaultWidth = isMobile ? 300 : 350;
+
+        // 加载保存的设置或使用默认值
+        const savedSettings = await this.loadData(STORAGE_NAME);
+        this.settings = {
+            imageOrder: savedSettings?.imageOrder || "random",
+            imageWidth: savedSettings?.imageWidth || defaultWidth,
+        };
+
+        console.log("[DEBUG] Settings loaded:", this.settings, "Platform:", frontend);
+    }
+
+    /**
+     * 初始化设置界面
+     */
+    private initSettings() {
+        const imageOrderSelect = document.createElement("select");
+        imageOrderSelect.className = "b3-select fn__flex-center";
+        imageOrderSelect.innerHTML = `
+            <option value="random" ${this.settings.imageOrder === "random" ? "selected" : ""}>随机顺序</option>
+            <option value="sequential" ${this.settings.imageOrder === "sequential" ? "selected" : ""}>顺序</option>
+            <option value="reverse" ${this.settings.imageOrder === "reverse" ? "selected" : ""}>倒序</option>
+        `;
+
+        const imageWidthInput = document.createElement("input");
+        imageWidthInput.className = "b3-text-field fn__flex-center";
+        imageWidthInput.type = "number";
+        imageWidthInput.min = "200";
+        imageWidthInput.max = "600";
+        imageWidthInput.step = "50";
+        imageWidthInput.value = this.settings.imageWidth.toString();
+
+        this.setting = new Setting({
+            confirmCallback: () => {
+                this.settings.imageOrder = imageOrderSelect.value as "random" | "sequential" | "reverse";
+                this.settings.imageWidth = parseInt(imageWidthInput.value);
+                this.saveData(STORAGE_NAME, this.settings);
+                showMessage("设置已保存");
+            }
+        });
+
+        this.setting.addItem({
+            title: "图片顺序",
+            description: "设置图片在瀑布流中的显示顺序",
+            actionElement: imageOrderSelect,
+        });
+
+        this.setting.addItem({
+            title: "图片宽度（像素）",
+            description: "设置瀑布流中图片的宽度，范围 200-600",
+            actionElement: imageWidthInput,
+        });
     }
 
     /**
@@ -127,6 +208,32 @@ export default class ImageWaterfallGallery extends Plugin {
     }
 
     /**
+     * 根据设置对图片进行排序
+     */
+    private orderImages(images: string[]): string[] {
+        const orderedImages = [...images];
+
+        switch (this.settings.imageOrder) {
+            case "random":
+                // Fisher-Yates 洗牌算法
+                for (let i = orderedImages.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [orderedImages[i], orderedImages[j]] = [orderedImages[j], orderedImages[i]];
+                }
+                break;
+            case "reverse":
+                orderedImages.reverse();
+                break;
+            case "sequential":
+            default:
+                // 保持原顺序
+                break;
+        }
+
+        return orderedImages;
+    }
+
+    /**
      * 提取文档中的所有图片
      */
     private async extractImages(rootId: string): Promise<string[]> {
@@ -168,6 +275,10 @@ export default class ImageWaterfallGallery extends Plugin {
     private renderGallery(images: string[]) {
         console.log("[DEBUG] renderGallery called with", images.length, "images");
 
+        // 根据设置对图片进行排序
+        const orderedImages = this.orderImages(images);
+        console.log("[DEBUG] Images ordered with", this.settings.imageOrder, "order");
+
         // 如果已经有画廊，先销毁
         this.destroyGallery();
 
@@ -197,10 +308,12 @@ export default class ImageWaterfallGallery extends Plugin {
         // 创建瀑布流容器
         const container = document.createElement("div");
         container.className = "waterfall-container";
-        console.log("[DEBUG] Created waterfall container");
+        // 应用图片宽度设置
+        container.style.setProperty("--gallery-image-width", `${this.settings.imageWidth}px`);
+        console.log("[DEBUG] Created waterfall container with width:", this.settings.imageWidth);
 
-        // 添加图片
-        for (const imageSrc of images) {
+        // 添加图片（使用排序后的图片列表）
+        for (const imageSrc of orderedImages) {
             console.log("[DEBUG] Creating image item for:", imageSrc);
             const item = document.createElement("div");
             item.className = "waterfall-item";
@@ -214,6 +327,11 @@ export default class ImageWaterfallGallery extends Plugin {
             img.onerror = () => {
                 console.error("[DEBUG] Image failed to load:", imageSrc);
                 item.style.display = "none";
+            };
+
+            // 添加点击事件打开灯箱
+            img.onclick = () => {
+                this.showLightbox(imageSrc, orderedImages);
             };
 
             item.appendChild(img);
@@ -258,6 +376,120 @@ export default class ImageWaterfallGallery extends Plugin {
             this.galleryOverlay.remove();
             this.galleryOverlay = null;
             console.log("[DEBUG] Gallery destroyed");
+        }
+    }
+
+    /**
+     * 显示灯箱
+     */
+    private showLightbox(imageSrc: string, allImages: string[]) {
+        console.log("[DEBUG] showLightbox called for:", imageSrc);
+
+        // 如果已经有灯箱，先销毁
+        this.destroyLightbox();
+
+        const currentIndex = allImages.indexOf(imageSrc);
+
+        // 创建灯箱覆盖层
+        const lightbox = document.createElement("div");
+        lightbox.className = "gallery-lightbox";
+
+        // 创建关闭按钮
+        const closeBtn = document.createElement("button");
+        closeBtn.className = "lightbox-close-btn";
+        closeBtn.textContent = "✕";
+        closeBtn.onclick = () => this.destroyLightbox();
+
+        // 创建图片容器
+        const imgContainer = document.createElement("div");
+        imgContainer.className = "lightbox-image-container";
+
+        const img = document.createElement("img");
+        img.src = imageSrc;
+        img.className = "lightbox-image";
+
+        imgContainer.appendChild(img);
+
+        // 创建导航按钮（如果有多张图片）
+        if (allImages.length > 1) {
+            const prevBtn = document.createElement("button");
+            prevBtn.className = "lightbox-nav-btn lightbox-prev-btn";
+            prevBtn.innerHTML = "‹";
+            prevBtn.onclick = (e) => {
+                e.stopPropagation();
+                const prevIndex = (currentIndex - 1 + allImages.length) % allImages.length;
+                this.showLightbox(allImages[prevIndex], allImages);
+            };
+
+            const nextBtn = document.createElement("button");
+            nextBtn.className = "lightbox-nav-btn lightbox-next-btn";
+            nextBtn.innerHTML = "›";
+            nextBtn.onclick = (e) => {
+                e.stopPropagation();
+                const nextIndex = (currentIndex + 1) % allImages.length;
+                this.showLightbox(allImages[nextIndex], allImages);
+            };
+
+            lightbox.appendChild(prevBtn);
+            lightbox.appendChild(nextBtn);
+        }
+
+        // 创建图片计数器
+        const counter = document.createElement("div");
+        counter.className = "lightbox-counter";
+        counter.textContent = `${currentIndex + 1} / ${allImages.length}`;
+
+        lightbox.appendChild(closeBtn);
+        lightbox.appendChild(imgContainer);
+        lightbox.appendChild(counter);
+
+        // 点击背景关闭
+        lightbox.onclick = (e) => {
+            if (e.target === lightbox || e.target === imgContainer) {
+                this.destroyLightbox();
+            }
+        };
+
+        // 添加到页面
+        document.body.appendChild(lightbox);
+        this.lightboxOverlay = lightbox;
+
+        // 添加键盘导航
+        const handleKeyboard = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                this.destroyLightbox();
+            } else if (e.key === "ArrowLeft" && allImages.length > 1) {
+                const prevIndex = (currentIndex - 1 + allImages.length) % allImages.length;
+                this.showLightbox(allImages[prevIndex], allImages);
+            } else if (e.key === "ArrowRight" && allImages.length > 1) {
+                const nextIndex = (currentIndex + 1) % allImages.length;
+                this.showLightbox(allImages[nextIndex], allImages);
+            }
+        };
+        document.addEventListener("keydown", handleKeyboard);
+
+        // 保存事件处理器以便清理
+        (lightbox as any)._keyboardHandler = handleKeyboard;
+
+        // 添加淡入动画
+        setTimeout(() => {
+            lightbox.classList.add("show");
+        }, 10);
+    }
+
+    /**
+     * 销毁灯箱
+     */
+    private destroyLightbox() {
+        console.log("[DEBUG] destroyLightbox called");
+        if (this.lightboxOverlay) {
+            // 移除键盘事件监听
+            const handler = (this.lightboxOverlay as any)._keyboardHandler;
+            if (handler) {
+                document.removeEventListener("keydown", handler);
+            }
+            this.lightboxOverlay.remove();
+            this.lightboxOverlay = null;
         }
     }
 }
