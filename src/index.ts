@@ -14,6 +14,24 @@ interface IGallerySettings {
     imageWidth: number; // 图片宽度（像素）
 }
 
+interface IGalleryFile {
+    id: string; // 文档 ID
+    name: string; // 文档名称
+    created: string; // 创建时间
+    updated: string; // 更新时间
+    imageCount: number; // 图片数量
+}
+
+interface IImageInfo {
+    id: string; // span ID
+    markdown: string; // markdown 原文
+    src: string; // 图片路径
+    blockId: string; // 所在块 ID
+    content: string; // 所在块内容
+}
+
+type SortOrder = "date-desc" | "date-asc" | "reference-order";
+
 /**
  * 瀑布流画廊插件
  * 为带有 #gallery 标签的文档自动以瀑布流形式展示图片
@@ -22,7 +40,9 @@ export default class ImageWaterfallGallery extends Plugin {
     private currentRootId: string = "";
     private galleryOverlay: HTMLElement | null = null;
     private lightboxOverlay: HTMLElement | null = null;
+    private galleryManagementOverlay: HTMLElement | null = null;
     private settings: IGallerySettings;
+    private currentSortOrder: SortOrder = "date-desc";
 
     async onload() {
         console.log("Loading Image Waterfall Gallery Plugin");
@@ -85,6 +105,13 @@ export default class ImageWaterfallGallery extends Plugin {
         imageWidthInput.step = "50";
         imageWidthInput.value = this.settings.imageWidth.toString();
 
+        const galleryManagementBtn = document.createElement("button");
+        galleryManagementBtn.className = "b3-button b3-button--outline";
+        galleryManagementBtn.textContent = "管理画廊文件";
+        galleryManagementBtn.onclick = () => {
+            this.showGalleryManagement();
+        };
+
         this.setting = new Setting({
             confirmCallback: () => {
                 this.settings.imageOrder = imageOrderSelect.value as "random" | "sequential" | "reverse";
@@ -104,6 +131,12 @@ export default class ImageWaterfallGallery extends Plugin {
             title: "图片宽度（像素）",
             description: "设置瀑布流中图片的宽度，范围 200-600",
             actionElement: imageWidthInput,
+        });
+
+        this.setting.addItem({
+            title: "画廊文件管理",
+            description: "查看和管理所有画廊文件",
+            actionElement: galleryManagementBtn,
         });
     }
 
@@ -490,6 +523,513 @@ export default class ImageWaterfallGallery extends Plugin {
             }
             this.lightboxOverlay.remove();
             this.lightboxOverlay = null;
+        }
+    }
+
+    /**
+     * 查询所有画廊文件
+     */
+    private async queryAllGalleryFiles(): Promise<IGalleryFile[]> {
+        // 查询所有带有 #gallery# 标签的文档
+        const sql = `
+            SELECT id, content, created, updated
+            FROM blocks
+            WHERE type = 'd' AND (tag LIKE '%#gallery#%' OR tag LIKE '%gallery%')
+            ORDER BY created DESC
+        `;
+        console.log("[DEBUG] queryAllGalleryFiles SQL:", sql);
+
+        try {
+            const result = await this.sqlQuery(sql);
+            console.log("[DEBUG] queryAllGalleryFiles result count:", result.length);
+
+            const galleryFiles: IGalleryFile[] = [];
+
+            for (const row of result) {
+                // 查询该文档的图片数量
+                const imageCountSql = `
+                    SELECT COUNT(*) as count
+                    FROM spans
+                    WHERE root_id = '${row.id}' AND type = 'img'
+                `;
+                const countResult = await this.sqlQuery(imageCountSql);
+                const imageCount = countResult[0]?.count || 0;
+
+                galleryFiles.push({
+                    id: row.id,
+                    name: row.content || "未命名文档",
+                    created: row.created,
+                    updated: row.updated,
+                    imageCount: imageCount,
+                });
+            }
+
+            console.log("[DEBUG] Total gallery files found:", galleryFiles.length);
+            return galleryFiles;
+        } catch (error) {
+            console.error("[DEBUG] Error querying gallery files:", error);
+            return [];
+        }
+    }
+
+    /**
+     * 获取指定画廊文件的详细图片信息
+     */
+    private async getGalleryImageDetails(rootId: string): Promise<IImageInfo[]> {
+        const sql = `
+            SELECT s.id, s.markdown, s.block_id, b.content
+            FROM spans s
+            LEFT JOIN blocks b ON s.block_id = b.id
+            WHERE s.root_id = '${rootId}' AND s.type = 'img'
+            ORDER BY s.block_id
+        `;
+        console.log("[DEBUG] getGalleryImageDetails SQL:", sql);
+
+        try {
+            const result = await this.sqlQuery(sql);
+            console.log("[DEBUG] getGalleryImageDetails result count:", result.length);
+
+            const imageInfos: IImageInfo[] = [];
+            const regex = /!\[.*?\]\((.*?)(?:\s+".*?")?\)/;
+
+            for (const row of result) {
+                const markdown = row.markdown || "";
+                const match = markdown.match(regex);
+                if (match && match[1]) {
+                    imageInfos.push({
+                        id: row.id,
+                        markdown: markdown,
+                        src: match[1],
+                        blockId: row.block_id,
+                        content: row.content || "",
+                    });
+                }
+            }
+
+            console.log("[DEBUG] Total image details extracted:", imageInfos.length);
+            return imageInfos;
+        } catch (error) {
+            console.error("[DEBUG] Error getting image details:", error);
+            return [];
+        }
+    }
+
+    /**
+     * 对画廊文件进行排序
+     */
+    private sortGalleryFiles(files: IGalleryFile[], sortOrder: SortOrder): IGalleryFile[] {
+        const sorted = [...files];
+
+        switch (sortOrder) {
+            case "date-desc":
+                // 按创建日期倒序（最新的在前）
+                sorted.sort((a, b) => {
+                    return new Date(b.created).getTime() - new Date(a.created).getTime();
+                });
+                break;
+            case "date-asc":
+                // 按创建日期正序（最旧的在前）
+                sorted.sort((a, b) => {
+                    return new Date(a.created).getTime() - new Date(b.created).getTime();
+                });
+                break;
+            case "reference-order":
+                // 按文件内引用顺序（保持查询顺序）
+                // 这里保持原顺序，因为查询时已经按 created DESC 排序
+                break;
+        }
+
+        return sorted;
+    }
+
+    /**
+     * 显示画廊管理界面
+     */
+    private async showGalleryManagement() {
+        console.log("[DEBUG] showGalleryManagement called");
+
+        // 如果已经有管理界面，先销毁
+        this.destroyGalleryManagement();
+
+        // 查询所有画廊文件
+        const galleryFiles = await this.queryAllGalleryFiles();
+        console.log("[DEBUG] Found", galleryFiles.length, "gallery files");
+
+        if (galleryFiles.length === 0) {
+            showMessage("未找到画廊文件");
+            return;
+        }
+
+        // 创建管理界面覆盖层
+        const overlay = document.createElement("div");
+        overlay.className = "gallery-management-overlay";
+
+        // 创建工具栏
+        const toolbar = document.createElement("div");
+        toolbar.className = "gallery-management-toolbar";
+
+        const title = document.createElement("span");
+        title.className = "gallery-management-title";
+        title.textContent = "画廊文件管理";
+
+        const closeBtn = document.createElement("button");
+        closeBtn.className = "gallery-close-btn";
+        closeBtn.textContent = "✕";
+        closeBtn.onclick = () => this.destroyGalleryManagement();
+
+        toolbar.appendChild(title);
+        toolbar.appendChild(closeBtn);
+
+        // 创建排序选择器
+        const sortContainer = document.createElement("div");
+        sortContainer.className = "gallery-management-sort";
+
+        const sortLabel = document.createElement("span");
+        sortLabel.textContent = "排序方式：";
+        sortLabel.className = "gallery-management-sort-label";
+
+        const sortSelect = document.createElement("select");
+        sortSelect.className = "b3-select";
+        sortSelect.innerHTML = `
+            <option value="date-desc" ${this.currentSortOrder === "date-desc" ? "selected" : ""}>创建日期（倒序）</option>
+            <option value="date-asc" ${this.currentSortOrder === "date-asc" ? "selected" : ""}>创建日期（正序）</option>
+            <option value="reference-order" ${this.currentSortOrder === "reference-order" ? "selected" : ""}>引用顺序</option>
+        `;
+
+        sortSelect.onchange = () => {
+            this.currentSortOrder = sortSelect.value as SortOrder;
+            this.showGalleryManagement(); // 重新渲染
+        };
+
+        sortContainer.appendChild(sortLabel);
+        sortContainer.appendChild(sortSelect);
+
+        // 创建文件列表容器
+        const listContainer = document.createElement("div");
+        listContainer.className = "gallery-management-list";
+
+        // 对文件进行排序
+        const sortedFiles = this.sortGalleryFiles(galleryFiles, this.currentSortOrder);
+
+        // 渲染文件列表
+        for (const file of sortedFiles) {
+            const fileItem = this.createGalleryFileItem(file);
+            listContainer.appendChild(fileItem);
+        }
+
+        overlay.appendChild(toolbar);
+        overlay.appendChild(sortContainer);
+        overlay.appendChild(listContainer);
+
+        // 添加到页面
+        document.body.appendChild(overlay);
+        this.galleryManagementOverlay = overlay;
+
+        // 添加 ESC 键关闭功能
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                this.destroyGalleryManagement();
+                document.removeEventListener("keydown", handleEscape);
+            }
+        };
+        document.addEventListener("keydown", handleEscape);
+
+        // 添加淡入动画
+        setTimeout(() => {
+            overlay.classList.add("show");
+        }, 10);
+    }
+
+    /**
+     * 销毁画廊管理界面
+     */
+    private destroyGalleryManagement() {
+        console.log("[DEBUG] destroyGalleryManagement called");
+        if (this.galleryManagementOverlay) {
+            this.galleryManagementOverlay.remove();
+            this.galleryManagementOverlay = null;
+        }
+    }
+
+    /**
+     * 创建画廊文件列表项
+     */
+    private createGalleryFileItem(file: IGalleryFile): HTMLElement {
+        const item = document.createElement("div");
+        item.className = "gallery-file-item";
+
+        const nameContainer = document.createElement("div");
+        nameContainer.className = "gallery-file-name";
+        nameContainer.textContent = file.name;
+
+        const infoContainer = document.createElement("div");
+        infoContainer.className = "gallery-file-info";
+
+        const dateSpan = document.createElement("span");
+        dateSpan.className = "gallery-file-date";
+        const date = new Date(file.created);
+        dateSpan.textContent = `创建于 ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+
+        const countSpan = document.createElement("span");
+        countSpan.className = "gallery-file-count";
+        countSpan.textContent = `${file.imageCount} 张图片`;
+
+        infoContainer.appendChild(dateSpan);
+        infoContainer.appendChild(countSpan);
+
+        const manageBtn = document.createElement("button");
+        manageBtn.className = "b3-button b3-button--outline gallery-file-manage-btn";
+        manageBtn.textContent = "管理";
+        manageBtn.onclick = () => {
+            this.showSingleGalleryManagement(file);
+        };
+
+        item.appendChild(nameContainer);
+        item.appendChild(infoContainer);
+        item.appendChild(manageBtn);
+
+        return item;
+    }
+
+    /**
+     * 显示单个画廊文件的管理界面
+     */
+    private async showSingleGalleryManagement(file: IGalleryFile) {
+        console.log("[DEBUG] showSingleGalleryManagement called for file:", file.id);
+
+        // 销毁当前的管理界面
+        this.destroyGalleryManagement();
+
+        // 获取该画廊文件的详细图片信息
+        const imageInfos = await this.getGalleryImageDetails(file.id);
+        console.log("[DEBUG] Found", imageInfos.length, "images in gallery");
+
+        // 创建单个画廊管理界面覆盖层
+        const overlay = document.createElement("div");
+        overlay.className = "gallery-management-overlay single-gallery-view";
+
+        // 创建工具栏
+        const toolbar = document.createElement("div");
+        toolbar.className = "gallery-management-toolbar";
+
+        const backBtn = document.createElement("button");
+        backBtn.className = "b3-button b3-button--outline";
+        backBtn.textContent = "← 返回";
+        backBtn.onclick = () => {
+            this.showGalleryManagement();
+        };
+
+        const title = document.createElement("span");
+        title.className = "gallery-management-title";
+        title.textContent = file.name;
+
+        const closeBtn = document.createElement("button");
+        closeBtn.className = "gallery-close-btn";
+        closeBtn.textContent = "✕";
+        closeBtn.onclick = () => this.destroyGalleryManagement();
+
+        toolbar.appendChild(backBtn);
+        toolbar.appendChild(title);
+        toolbar.appendChild(closeBtn);
+
+        overlay.appendChild(toolbar);
+
+        // 继续添加其他部分...
+        this.addSingleGalleryContent(overlay, file, imageInfos);
+
+        // 添加到页面
+        document.body.appendChild(overlay);
+        this.galleryManagementOverlay = overlay;
+
+        // 添加淡入动画
+        setTimeout(() => {
+            overlay.classList.add("show");
+        }, 10);
+    }
+
+    /**
+     * 添加单个画廊管理界面的内容
+     */
+    private addSingleGalleryContent(overlay: HTMLElement, file: IGalleryFile, imageInfos: IImageInfo[]) {
+        // 创建信息栏
+        const infoBar = document.createElement("div");
+        infoBar.className = "single-gallery-info-bar";
+
+        const infoText = document.createElement("span");
+        infoText.textContent = `共 ${imageInfos.length} 张图片`;
+        infoBar.appendChild(infoText);
+
+        const addImageBtn = document.createElement("button");
+        addImageBtn.className = "b3-button b3-button--outline";
+        addImageBtn.textContent = "+ 添加图片";
+        addImageBtn.onclick = () => {
+            this.showAddImageDialog(file);
+        };
+        infoBar.appendChild(addImageBtn);
+
+        overlay.appendChild(infoBar);
+
+        // 创建图片网格容器
+        const gridContainer = document.createElement("div");
+        gridContainer.className = "single-gallery-grid";
+
+        // 渲染图片列表
+        for (const imageInfo of imageInfos) {
+            const imageItem = this.createImageManagementItem(imageInfo, file);
+            gridContainer.appendChild(imageItem);
+        }
+
+        overlay.appendChild(gridContainer);
+    }
+
+    /**
+     * 创建图片管理项
+     */
+    private createImageManagementItem(imageInfo: IImageInfo, file: IGalleryFile): HTMLElement {
+        const item = document.createElement("div");
+        item.className = "image-management-item";
+
+        // 图片预览
+        const imgPreview = document.createElement("div");
+        imgPreview.className = "image-preview";
+
+        const img = document.createElement("img");
+        img.src = imageInfo.src;
+        img.loading = "lazy";
+        img.onclick = () => {
+            // 点击查看大图
+            this.showLightbox(imageInfo.src, [imageInfo.src]);
+        };
+
+        imgPreview.appendChild(img);
+
+        // 图片信息
+        const infoContainer = document.createElement("div");
+        infoContainer.className = "image-info-container";
+
+        const pathSpan = document.createElement("div");
+        pathSpan.className = "image-path";
+        pathSpan.textContent = imageInfo.src;
+        pathSpan.title = imageInfo.src;
+
+        const blockSpan = document.createElement("div");
+        blockSpan.className = "image-block-info";
+        blockSpan.textContent = `块ID: ${imageInfo.blockId}`;
+
+        infoContainer.appendChild(pathSpan);
+        infoContainer.appendChild(blockSpan);
+
+        // 操作按钮
+        const actionsContainer = document.createElement("div");
+        actionsContainer.className = "image-actions";
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "b3-button b3-button--error";
+        deleteBtn.textContent = "删除";
+        deleteBtn.onclick = async () => {
+            if (confirm("确定要删除这张图片的引用吗？")) {
+                await this.deleteImageReference(imageInfo, file);
+            }
+        };
+
+        actionsContainer.appendChild(deleteBtn);
+
+        item.appendChild(imgPreview);
+        item.appendChild(infoContainer);
+        item.appendChild(actionsContainer);
+
+        return item;
+    }
+
+    /**
+     * 显示添加图片对话框
+     */
+    private showAddImageDialog(file: IGalleryFile) {
+        const imagePath = prompt("请输入图片路径或URL：");
+        if (!imagePath || imagePath.trim() === "") {
+            return;
+        }
+
+        this.addImageToGallery(file, imagePath.trim());
+    }
+
+    /**
+     * 添加图片到画廊
+     */
+    private async addImageToGallery(file: IGalleryFile, imagePath: string) {
+        try {
+            // 构造图片 markdown
+            const imageMarkdown = `![](${imagePath})`;
+
+            // 在文档末尾插入图片
+            const response = await fetchSyncPost("/api/block/appendBlock", {
+                dataType: "markdown",
+                data: imageMarkdown,
+                parentID: file.id,
+            });
+
+            if (response.code === 0) {
+                showMessage("图片添加成功");
+                // 刷新单个画廊管理界面
+                this.showSingleGalleryManagement(file);
+            } else {
+                showMessage(`添加失败: ${response.msg}`);
+            }
+        } catch (error) {
+            console.error("[DEBUG] Error adding image:", error);
+            showMessage("添加图片失败");
+        }
+    }
+
+    /**
+     * 删除图片引用
+     */
+    private async deleteImageReference(imageInfo: IImageInfo, file: IGalleryFile) {
+        try {
+            // 获取块的内容
+            const blockSql = `SELECT markdown FROM blocks WHERE id = '${imageInfo.blockId}'`;
+            const blockResult = await this.sqlQuery(blockSql);
+
+            if (blockResult.length === 0) {
+                showMessage("未找到图片所在的块");
+                return;
+            }
+
+            const blockMarkdown = blockResult[0].markdown || "";
+
+            // 从块内容中移除图片 markdown
+            const newMarkdown = blockMarkdown.replace(imageInfo.markdown, "").trim();
+
+            // 如果块内容为空，删除整个块
+            if (newMarkdown === "") {
+                const deleteResponse = await fetchSyncPost("/api/block/deleteBlock", {
+                    id: imageInfo.blockId,
+                });
+
+                if (deleteResponse.code === 0) {
+                    showMessage("图片引用已删除");
+                    this.showSingleGalleryManagement(file);
+                } else {
+                    showMessage(`删除失败: ${deleteResponse.msg}`);
+                }
+            } else {
+                // 更新块内容
+                const updateResponse = await fetchSyncPost("/api/block/updateBlock", {
+                    dataType: "markdown",
+                    data: newMarkdown,
+                    id: imageInfo.blockId,
+                });
+
+                if (updateResponse.code === 0) {
+                    showMessage("图片引用已删除");
+                    this.showSingleGalleryManagement(file);
+                } else {
+                    showMessage(`删除失败: ${updateResponse.msg}`);
+                }
+            }
+        } catch (error) {
+            console.error("[DEBUG] Error deleting image reference:", error);
+            showMessage("删除图片引用失败");
         }
     }
 }
