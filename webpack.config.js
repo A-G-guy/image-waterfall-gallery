@@ -57,6 +57,7 @@ module.exports = (env, argv) => {
             filename: "[name].js",
             path: path.resolve(__dirname),
             libraryTarget: "commonjs2",
+            libraryExport: "default",
             library: {
                 type: "commonjs2",
             },

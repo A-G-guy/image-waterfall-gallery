@@ -1,7 +1,7 @@
 import {
     Plugin,
     showMessage,
-    fetchPost,
+    fetchSyncPost,
 } from "siyuan";
 import "./index.scss";
 
@@ -77,7 +77,7 @@ export default class ImageWaterfallGallery extends Plugin {
      */
     private async sqlQuery(sql: string): Promise<any[]> {
         try {
-            const response = await fetchPost("/api/query/sql", { stmt: sql });
+            const response = await fetchSyncPost("/api/query/sql", { stmt: sql });
             if (response.code === 0) {
                 return response.data || [];
             } else {
