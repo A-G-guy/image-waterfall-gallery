@@ -428,6 +428,8 @@
 .image-preview {
   width: 100%;
   height: 200px;
+  min-height: 200px;  // 添加最小高度，防止被flex压缩
+  flex-shrink: 0;     // 防止flex收缩
   overflow: hidden;
   background-color: var(--b3-theme-background);
   display: flex;

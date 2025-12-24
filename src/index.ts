@@ -542,10 +542,13 @@ export default class ImageWaterfallGallery extends Plugin {
         try {
             const result = await this.sqlQuery(sql);
             console.log("[DEBUG] queryAllGalleryFiles result count:", result.length);
+            console.log("[DEBUG] queryAllGalleryFiles raw result:", result);
 
             const galleryFiles: IGalleryFile[] = [];
 
             for (const row of result) {
+                console.log("[DEBUG] Processing gallery file - id:", row.id, "content:", row.content, "created:", row.created, "updated:", row.updated);
+
                 // 查询该文档的图片数量
                 const imageCountSql = `
                     SELECT COUNT(*) as count
@@ -554,6 +557,7 @@ export default class ImageWaterfallGallery extends Plugin {
                 `;
                 const countResult = await this.sqlQuery(imageCountSql);
                 const imageCount = countResult[0]?.count || 0;
+                console.log("[DEBUG] Gallery file image count:", imageCount);
 
                 galleryFiles.push({
                     id: row.id,
@@ -565,6 +569,7 @@ export default class ImageWaterfallGallery extends Plugin {
             }
 
             console.log("[DEBUG] Total gallery files found:", galleryFiles.length);
+            console.log("[DEBUG] Gallery files array:", galleryFiles);
             return galleryFiles;
         } catch (error) {
             console.error("[DEBUG] Error querying gallery files:", error);
@@ -588,30 +593,112 @@ export default class ImageWaterfallGallery extends Plugin {
         try {
             const result = await this.sqlQuery(sql);
             console.log("[DEBUG] getGalleryImageDetails result count:", result.length);
+            console.log("[DEBUG] getGalleryImageDetails raw result:", result);
 
             const imageInfos: IImageInfo[] = [];
             const regex = /!\[.*?\]\((.*?)(?:\s+".*?")?\)/;
 
             for (const row of result) {
                 const markdown = row.markdown || "";
+                console.log("[DEBUG] Processing image - id:", row.id, "markdown:", markdown, "block_id:", row.block_id);
                 const match = markdown.match(regex);
                 if (match && match[1]) {
-                    imageInfos.push({
+                    const imageInfo = {
                         id: row.id,
                         markdown: markdown,
                         src: match[1],
                         blockId: row.block_id,
                         content: row.content || "",
-                    });
+                    };
+                    console.log("[DEBUG] Extracted image info:", imageInfo);
+                    imageInfos.push(imageInfo);
+                } else {
+                    console.log("[DEBUG] Failed to extract image from markdown:", markdown);
                 }
             }
 
             console.log("[DEBUG] Total image details extracted:", imageInfos.length);
+            console.log("[DEBUG] Image infos array:", imageInfos);
             return imageInfos;
         } catch (error) {
             console.error("[DEBUG] Error getting image details:", error);
             return [];
         }
+    }
+
+    /**
+     * 规范化图片路径
+     * 思源笔记的图片路径格式为 assets/xxx，需要添加前缀 /
+     */
+    private normalizeImagePath(path: string): string {
+        console.log("[DEBUG] normalizeImagePath - input path:", path);
+
+        if (!path) {
+            console.log("[DEBUG] normalizeImagePath - empty path");
+            return "";
+        }
+
+        // 如果已经是完整的URL（http/https），直接返回
+        if (path.startsWith("http://") || path.startsWith("https://")) {
+            console.log("[DEBUG] normalizeImagePath - already full URL");
+            return path;
+        }
+
+        // 如果已经以 / 开头，直接返回
+        if (path.startsWith("/")) {
+            console.log("[DEBUG] normalizeImagePath - already starts with /");
+            return path;
+        }
+
+        // 如果是 assets/ 开头，添加前缀 /
+        if (path.startsWith("assets/")) {
+            const normalizedPath = "/" + path;
+            console.log("[DEBUG] normalizeImagePath - normalized to:", normalizedPath);
+            return normalizedPath;
+        }
+
+        // 其他情况，直接返回原路径
+        console.log("[DEBUG] normalizeImagePath - returning original path");
+        return path;
+    }
+
+    /**
+     * 解析思源笔记的时间戳格式
+     * 思源笔记的时间戳格式为 YYYYMMDDHHmmss，如 "20251224190738"
+     */
+    private parseTimestamp(timestamp: string): Date {
+        console.log("[DEBUG] parseTimestamp - input:", timestamp, "type:", typeof timestamp);
+
+        // 如果已经是有效的日期字符串或数字，直接转换
+        if (!timestamp || timestamp === "") {
+            console.log("[DEBUG] parseTimestamp - empty timestamp, using current date");
+            return new Date();
+        }
+
+        // 尝试直接转换（可能是标准格式）
+        const directDate = new Date(timestamp);
+        if (!isNaN(directDate.getTime())) {
+            console.log("[DEBUG] parseTimestamp - direct conversion successful:", directDate);
+            return directDate;
+        }
+
+        // 解析思源笔记格式：YYYYMMDDHHmmss
+        const timestampStr = timestamp.toString();
+        if (timestampStr.length === 14) {
+            const year = parseInt(timestampStr.substring(0, 4));
+            const month = parseInt(timestampStr.substring(4, 6)) - 1; // 月份从0开始
+            const day = parseInt(timestampStr.substring(6, 8));
+            const hour = parseInt(timestampStr.substring(8, 10));
+            const minute = parseInt(timestampStr.substring(10, 12));
+            const second = parseInt(timestampStr.substring(12, 14));
+
+            const parsedDate = new Date(year, month, day, hour, minute, second);
+            console.log("[DEBUG] parseTimestamp - parsed from format:", parsedDate);
+            return parsedDate;
+        }
+
+        console.log("[DEBUG] parseTimestamp - unable to parse, using current date");
+        return new Date();
     }
 
     /**
@@ -767,7 +854,8 @@ export default class ImageWaterfallGallery extends Plugin {
 
         const dateSpan = document.createElement("span");
         dateSpan.className = "gallery-file-date";
-        const date = new Date(file.created);
+        const date = this.parseTimestamp(file.created);
+        console.log("[DEBUG] createGalleryFileItem - raw created:", file.created, "parsed date:", date);
         dateSpan.textContent = `创建于 ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
 
         const countSpan = document.createElement("span");
@@ -886,6 +974,8 @@ export default class ImageWaterfallGallery extends Plugin {
      * 创建图片管理项
      */
     private createImageManagementItem(imageInfo: IImageInfo, file: IGalleryFile): HTMLElement {
+        console.log("[DEBUG] createImageManagementItem - imageInfo:", imageInfo);
+
         const item = document.createElement("div");
         item.className = "image-management-item";
 
@@ -894,7 +984,10 @@ export default class ImageWaterfallGallery extends Plugin {
         imgPreview.className = "image-preview";
 
         const img = document.createElement("img");
-        img.src = imageInfo.src;
+        // 处理图片路径：确保路径格式正确
+        const imageSrc = this.normalizeImagePath(imageInfo.src);
+        console.log("[DEBUG] createImageManagementItem - original src:", imageInfo.src, "normalized src:", imageSrc);
+        img.src = imageSrc;
         img.alt = "图片预览";
         // 移除 lazy loading 以确保图片立即加载
 
@@ -903,14 +996,14 @@ export default class ImageWaterfallGallery extends Plugin {
 
         // 添加加载成功处理
         img.onload = () => {
-            console.log("[DEBUG] Image loaded successfully:", imageInfo.src);
+            console.log("[DEBUG] Image loaded successfully:", imageSrc);
             imgPreview.classList.remove("loading");
             imgPreview.classList.add("loaded");
         };
 
         // 添加加载失败处理
         img.onerror = () => {
-            console.error("[DEBUG] Image failed to load:", imageInfo.src);
+            console.error("[DEBUG] Image failed to load:", imageSrc);
             imgPreview.classList.remove("loading");
             imgPreview.classList.add("error");
             img.alt = "图片加载失败";
@@ -918,7 +1011,7 @@ export default class ImageWaterfallGallery extends Plugin {
 
         img.onclick = () => {
             // 点击查看大图
-            this.showLightbox(imageInfo.src, [imageInfo.src]);
+            this.showLightbox(imageSrc, [imageSrc]);
         };
 
         imgPreview.appendChild(img);
