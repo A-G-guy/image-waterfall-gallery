@@ -1200,9 +1200,19 @@ export default class ImageWaterfallGallery extends Plugin {
         try {
             showMessage("正在上传图片...");
 
+            // 获取文档的笔记本信息
+            const blockInfo = await fetchSyncPost("/api/block/getBlockInfo", { id: file.id });
+            if (blockInfo.code !== 0 || !blockInfo.data) {
+                showMessage("获取文档信息失败");
+                return;
+            }
+
+            const box = blockInfo.data.box;
+            console.log("[DEBUG] Document box:", box);
+
             // 创建 FormData
             const formData = new FormData();
-            formData.append("assetsDirPath", `/data/assets/`);
+            formData.append("assetsDirPath", `/data/${box}/assets/`);
             formData.append("file[]", imageFile);
 
             // 上传文件
@@ -1212,6 +1222,7 @@ export default class ImageWaterfallGallery extends Plugin {
             });
 
             const result = await response.json();
+            console.log("[DEBUG] Upload result:", result);
 
             if (result.code === 0 && result.data.succMap) {
                 // 获取上传后的文件路径
@@ -1222,6 +1233,7 @@ export default class ImageWaterfallGallery extends Plugin {
                 await this.addImageToGallery(file, uploadedPath);
             } else {
                 showMessage(`上传失败: ${result.msg || "未知错误"}`);
+                console.error("[DEBUG] Upload failed:", result);
             }
         } catch (error) {
             console.error("[DEBUG] Error uploading image:", error);
