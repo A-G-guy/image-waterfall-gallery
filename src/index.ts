@@ -933,6 +933,15 @@ export default class ImageWaterfallGallery extends Plugin {
         setTimeout(() => {
             overlay.classList.add("show");
         }, 10);
+
+        // 重置grid的scrollTop，确保从顶部开始显示
+        setTimeout(() => {
+            const gridContainer = overlay.querySelector('.single-gallery-grid') as HTMLElement;
+            if (gridContainer) {
+                gridContainer.scrollTop = 0;
+                console.log("[DEBUG] Reset grid scrollTop to 0");
+            }
+        }, 50);
     }
 
     /**
@@ -968,6 +977,10 @@ export default class ImageWaterfallGallery extends Plugin {
         }
 
         overlay.appendChild(gridContainer);
+
+        // 立即重置scrollTop，防止浏览器自动滚动
+        gridContainer.scrollTop = 0;
+        console.log("[DEBUG] Immediately reset grid scrollTop to 0 in addSingleGalleryContent");
     }
 
     /**
