@@ -1,27 +1,11 @@
 {
   "name": "image-waterfall-gallery",
-  "author": "Vanessa",
+  "author": "A-G-guy",
   "url": "https://github.com/A-G-guy/image-waterfall-gallery",
   "version": "1.0.0",
   "minAppVersion": "3.5.1",
-  "backends": [
-    "windows",
-    "linux",
-    "darwin",
-    "ios",
-    "android",
-    "harmony",
-    "docker",
-    "all"
-  ],
-  "frontends": [
-    "desktop",
-    "mobile",
-    "browser-desktop",
-    "browser-mobile",
-    "desktop-window",
-    "all"
-  ],
+  "backends": ["all"],
+  "frontends": ["all"],
   "disabledInPublish": false,
   "displayName": {
     "default": "Image Waterfall Gallery",
@@ -44,9 +28,6 @@
     ]
   },
   "keywords": [
-    "gallery",
-    "waterfall",
-    "image",
     "瀑布流",
     "画廊",
     "图片展示"

@@ -1,216 +1,177 @@
-# 思源笔记 - 瀑布流画廊插件
+# SiYuan Note - Image Waterfall Gallery Plugin
 
-[English](README_en.md) | 简体中文
+English | [简体中文](README_zh_CN.md)
 
-## 📖 插件简介
+## 📖 Introduction
 
-瀑布流画廊插件为思源笔记提供了沉浸式的图片浏览体验。当您打开带有 `#gallery` 标签的文档时，插件会自动提取文档中的所有图片，并以精美的瀑布流布局全屏展示，让您可以专注于欣赏图片内容，而不受文字干扰。
+The Image Waterfall Gallery plugin provides an immersive image viewing experience for SiYuan Note. When you open a document with the `#gallery` tag, the plugin automatically extracts all images from the document and displays them in a beautiful waterfall layout in fullscreen mode, allowing you to focus on enjoying the images without text distractions.
 
-## ✨ 功能特性
+## ✨ Features
 
-- 🎯 **自动触发**：打开带有 `#gallery` 标签的文档时自动进入画廊模式
-- 🖼️ **瀑布流布局**：采用等宽不等高的瀑布流布局，充分利用屏幕空间
-- ⚙️ **插件设置**：可配置图片顺序（随机/顺序/倒序）和图片宽度
-- 📁 **画廊管理**：统一管理所有画廊文件，支持查看、添加、删除图片
-- 🔍 **灯箱效果**：点击图片全屏查看，支持导航和键盘操作
-- 🎨 **主题适配**：自动适配思源笔记的深色/浅色主题
-- 📱 **响应式设计**：支持桌面端和移动端，自动调整布局
-- ⚡ **性能优化**：图片懒加载，提升加载速度
-- 🎭 **优雅动画**：淡入动画效果，提供流畅的视觉体验
-- ⌨️ **快捷操作**：支持 ESC 键快速退出画廊模式
+### Gallery Viewing
 
-## 📦 安装方法
+- 🎯 **Auto Trigger**: Automatically enters gallery mode when opening documents with `#gallery` tag
+- 🖼️ **Waterfall Layout**: Uses equal-width, variable-height waterfall layout to maximize screen space
+- 🔍 **Lightbox View**: Click images to view in lightbox with navigation support
+- 🎨 **Theme Adaptation**: Automatically adapts to SiYuan's dark/light themes
+- 📱 **Responsive Design**: Supports desktop and mobile with automatic column adjustment
+- ⚡ **Performance Optimization**: Lazy loading for improved loading speed
+- 🎭 **Elegant Animations**: Fade-in animation effects for smooth visual experience
+- ⌨️ **Quick Actions**: Press ESC to quickly exit gallery mode
 
-### 方法一：集市安装（推荐）
+### Gallery Management
 
-1. 打开思源笔记
-2. 进入 `设置` → `集市` → `插件`
-3. 搜索 "瀑布流画廊" 或 "Image Waterfall Gallery"
-4. 点击 `下载` 并启用插件
+- 📂 **File Management**: View and manage all documents with `#gallery` tag
+- 🔄 **File Sorting**: Sort by creation date (ascending/descending) or reference order
+- 🖼️ **Image Management**: View all image details in a single gallery file
+- ➕ **Add Images**: Upload images to attachments via file selector and auto-insert into document
+- 🗑️ **Delete References**: Delete image references (keep attachment files) with double confirmation protection
+- 📊 **Image Sorting**: Sort images by block order, path ascending/descending
 
-### 方法二：手动安装
+### Plugin Settings
 
-1. 下载最新版本的 `package.zip`
-2. 解压到思源笔记的 `data/plugins/` 目录
-3. 重启思源笔记
-4. 在 `设置` → `插件` 中启用插件
+- 🎲 **Image Order**: Set display order of images in waterfall (random/sequential/reverse)
+- 💻 **Desktop Width**: Customize waterfall image width for desktop (200-600px)
+- 📱 **Mobile Width**: Customize waterfall image width for mobile (200-600px)
+- 🌐 **Cross-platform Adaptation**: Auto-detect platform and apply corresponding width settings
 
-## 🚀 使用方法
+## 📦 Installation
 
-### 基础使用
+### Method 1: Marketplace Installation (Recommended)
 
-1. 创建或打开一个包含图片的文档
-2. 为文档添加 `#gallery` 标签
-   - 点击文档标题右侧的 `...` 菜单
-   - 选择 `属性` → `标签`
-   - 输入 `gallery` 并保存
-3. 切换到该文档时，插件会自动进入画廊模式
+1. Open SiYuan Note
+2. Go to `Settings` → `Marketplace` → `Plugins`
+3. Search for "瀑布流画廊" or "Image Waterfall Gallery"
+4. Click `Download` and enable the plugin
 
-### 退出画廊模式
+### Method 2: Manual Installation
 
-- 按 `ESC` 键
-- 点击右上角的关闭按钮 `✕`
+1. Download the latest `package.zip`
+2. Extract to SiYuan's `data/plugins/` directory
+3. Restart SiYuan Note
+4. Enable the plugin in `Settings` → `Plugins`
 
-### 灯箱查看
+## 🚀 Usage
 
-- 在画廊模式下，点击任意图片可进入灯箱全屏查看
-- 使用左右导航按钮或键盘 `←` `→` 键切换图片
-- 按 `ESC` 键或点击背景关闭灯箱
+### Basic Usage
 
-### 插件设置
+1. Create or open a document containing images
+2. Add `#gallery` tag to the document
+   - Click the `...` menu on the right side of the document title
+   - Select `Properties` → `Tags`
+   - Enter `gallery` and save
+3. When switching to this document, the plugin will automatically enter gallery mode
 
-1. 进入 `设置` → `插件` → `瀑布流画廊` → `设置`
-2. 可配置以下选项：
-   - **图片顺序**：
-     - 随机顺序（默认）：每次打开文档时随机排列图片
-     - 顺序：按文档中的原始顺序显示
-     - 倒序：按文档中的倒序显示
-   - **图片宽度**：
-     - 范围：200-600 像素
-     - 默认值：移动端 300px，桌面端 350px
-     - 调整宽度会影响瀑布流的列数
+### Exit Gallery Mode
 
-### 画廊文件管理
+- Press `ESC` key
+- Click the close button `✕` in the top right corner
 
-1. 进入 `设置` → `插件` → `瀑布流画廊` → `设置`
-2. 点击 `管理画廊文件` 按钮
-3. 在画廊管理界面中：
-   - **查看所有画廊**：显示所有带有 `#gallery` 标签的文档
-   - **排序方式**：支持按创建日期（倒序/正序）或引用顺序排序
-   - **进入单个画廊**：点击 `管理` 按钮查看单个画廊的详细信息
-4. 在单个画廊管理界面中：
-   - **查看图片**：以网格形式展示所有图片及其详细信息
-   - **编辑图片**：添加或删除图片请直接在文档中编辑（插入或删除图片块）
-   - **删除图片**：点击图片下方的 `删除` 按钮（仅删除引用，不删除附件）
-   - **查看大图**：点击图片可在灯箱中查看
-   - **返回列表**：点击 `← 返回` 按钮返回画廊列表
+### Using Gallery Management
 
-### 使用场景
+1. Open plugin settings (Settings → Plugins → Image Waterfall Gallery)
+2. Click `Manage Gallery Files` button
+3. In the gallery file list:
+   - Use sort selector to adjust file display order
+   - Click `Manage` button to enter detailed management of a single gallery
+4. In single gallery management interface:
+   - Use sort selector to adjust image display order
+   - Click `+ Add Image` to upload new images to gallery
+   - Click images to view in lightbox
+   - Click `Delete` button to delete image references (requires double confirmation)
 
-- 📸 **摄影作品集**：展示您的摄影作品
-- 🎨 **设计灵感库**：收集和浏览设计灵感
-- 🖼️ **艺术画廊**：欣赏艺术作品
-- 📚 **图片笔记**：浏览图片密集型笔记
+### Configure Plugin Settings
 
-## 🎬 效果预览
+1. Open plugin settings (Settings → Plugins → Image Waterfall Gallery)
+2. Configure the following options:
+   - **Image Order**: Select display order of images in waterfall
+   - **Desktop Image Width**: Set desktop image width (default 350px)
+   - **Mobile Image Width**: Set mobile image width (default 300px)
+3. Click confirm to save settings
 
-![预览图](preview.png)
+### Use Cases
 
-## ⚙️ 技术架构
+- 📸 **Photography Portfolio**: Showcase your photography work
+- 🎨 **Design Inspiration Library**: Collect and browse design inspiration
+- 🖼️ **Art Gallery**: Appreciate artworks
+- 📚 **Image Notes**: Browse image-intensive notes
 
-### 核心技术
+## ⚙️ Technical Architecture
 
-- **监听机制**：使用 `eventBus.on("switch-protyle")` 监听文档切换
-- **数据查询**：通过 SQL API 查询文档标签和图片
-  - 标签检测：查询 `blocks` 表的 `tag` 字段
-  - 图片提取：查询 `spans` 表中 `type='img'` 的行内元素
-- **布局方案**：CSS Multi-column 实现纯 CSS 瀑布流
-- **主题适配**：使用思源 CSS 变量（如 `var(--b3-theme-background)`）
+### Core Technologies
 
-### 文件结构
+- **Event Listening**: Uses `eventBus.on("switch-protyle")` to listen for document switches
+- **Data Querying**: Queries document tags and image blocks via SQL API
+- **Layout Solution**: Pure CSS waterfall layout using CSS Multi-column
+- **Theme Adaptation**: Uses SiYuan CSS variables (e.g., `var(--b3-theme-background)`)
+
+### File Structure
 
 ```text
 image-waterfall-gallery/
 ├── src/
-│   ├── index.ts          # 核心逻辑
-│   └── index.scss        # 样式文件
-├── plugin.json           # 插件配置
-├── icon.png             # 插件图标
-└── README.md            # 说明文档
+│   ├── index.ts          # Core logic
+│   └── index.scss        # Styles
+├── plugin.json           # Plugin configuration
+├── icon.png             # Plugin icon
+└── README.md            # Documentation
 ```
 
-## 🔧 开发说明
+## 🔧 Development
 
-### 环境要求
+### Requirements
 
 - Node.js >= 16
-- pnpm 或 npm
+- pnpm or npm
 
-### 开发步骤
+### Development Steps
 
 ```bash
-# 安装依赖
+# Install dependencies
 npm install
 
-# 开发模式
+# Development mode
 npm run dev
 
-# 生产构建
+# Production build
 npm run build
 ```
 
-### 构建产物
+### Build Output
 
-- `dist/index.js` - 主程序
-- `dist/index.css` - 样式文件
-- `package.zip` - 插件包
+- `dist/index.js` - Main program
+- `dist/index.css` - Styles
+- `package.zip` - Plugin package
 
-## 📝 更新日志
-
-### v1.0.3 (2025-12-24)
-
-- ✨ **新增画廊文件管理功能**：统一管理所有画廊文件
-  - 自动发现所有带有 `#gallery` 标签的文档
-  - 支持多种排序方式：创建日期（倒序/正序）、引用顺序
-  - 单个画廊详细管理：查看所有图片及详细信息
-  - 快捷删除图片：删除图片引用（保留附件文件）
-  - 图片预览：点击图片可在灯箱中查看
-- 🔧 **优化画廊管理交互**：
-  - 移除了"添加图片"按钮，简化界面
-  - 添加操作提示：引导用户直接在文档中编辑（插入或删除图片块）
-  - 减少代码复杂度，提升插件性能
-- 🔧 **改进图片加载**：
-  - 添加加载状态指示器
-  - 添加错误处理和提示
-  - 移除懒加载以提升响应速度
-- 🐛 **修复画廊管理界面显示问题**：
-  - 修复日期显示为 Invalid Date 的问题，正确解析思源笔记时间戳格式
-  - 修复图片路径问题，自动规范化 assets 路径
-  - 修复图片容器高度为0导致图片不显示的问题（CSS flex布局收缩）
-  - 修复Grid布局图片重叠问题：通过添加 `min-height: 0` 和 `grid-auto-rows: max-content` 解决flex容器与grid布局冲突导致的行高计算错误
-  - 添加详细的调试日志，便于问题排查
-
-### v1.0.2 (2025-12-24)
-
-- ✨ **新增插件设置功能**：支持配置图片顺序和宽度
-  - 图片顺序：随机（默认）、顺序、倒序
-  - 图片宽度：200-600像素可调，支持平台自适应默认值
-- ✨ **新增灯箱效果**：点击图片可全屏查看
-  - 支持上一张/下一张导航按钮
-  - 支持键盘快捷键（ESC关闭，←→切换）
-  - 显示图片计数器（如 "3 / 10"）
-- 🔧 **改进跨平台兼容性**：
-  - 使用 `column-width` 替代固定 `column-count`，提升响应式效果
-  - 添加平台检测，移动端和桌面端使用不同默认宽度
-  - 优化移动端触控体验
+## 📝 Changelog
 
 ### v1.0.1 (2025-12-24)
 
-- 🐛 **修复标签检测错误**：修正 SQL 查询，从 `attributes` 表改为 `blocks` 表的 `tag` 字段
-- 🐛 **修复图片提取错误**：修正 SQL 查询，从 `blocks` 表改为 `spans` 表查询 `type='img'` 的图片元素
-- 🐛 **修复 API 调用错误**：使用 `fetchSyncPost` 替代 `fetchPost`，解决插件无法启用的问题
-- 🔧 **增强调试功能**：添加详细的调试日志，便于问题排查
+- 🐛 Fixed platform detection logic, support independent image width settings for desktop and mobile
+- 🐛 Fixed add image button, changed to file selector and upload to attachments
+- 🐛 Added strong warning for delete function, including two-step confirmation and detailed explanation
+- 🐛 Fixed image sorting logic, added image sorting function for single gallery management page
 
 ### v1.0.0 (2025-12-23)
 
-- 🎉 首次发布
-- ✨ 实现自动瀑布流画廊功能
-- 🎨 支持主题适配
-- 📱 支持响应式布局
-- ⚡ 图片懒加载优化
+- 🎉 Initial release
+- ✨ Implemented automatic waterfall gallery functionality
+- 🎨 Theme adaptation support
+- 📱 Responsive layout support
+- ⚡ Image lazy loading optimization
 
-## 🤝 贡献
+## 🤝 Contributing
 
-欢迎提交 Issue 和 Pull Request！
+Issues and Pull Requests are welcome!
 
-## 📄 许可证
+## 📄 License
 
 MIT License
 
-## 🙏 致谢
+## 🙏 Acknowledgments
 
-感谢思源笔记团队提供的优秀平台和完善的插件 API。
+Thanks to the SiYuan Note team for providing an excellent platform and comprehensive plugin API.
 
 ---
 
-**提示**：如果您喜欢这个插件，欢迎给个 ⭐ Star！
+**Tip**: If you like this plugin, please give it a ⭐ Star!

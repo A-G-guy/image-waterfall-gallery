@@ -67,6 +67,15 @@ export default class ImageWaterfallGallery extends Plugin {
         this.destroyLightbox();
     }
 
+    async uninstall() {
+        console.log("Uninstalling Image Waterfall Gallery Plugin");
+        // 清理画廊覆盖层
+        this.destroyGallery();
+        this.destroyLightbox();
+        // 删除插件配置数据
+        await this.removeData(STORAGE_NAME);
+    }
+
     /**
      * 加载设置
      */
