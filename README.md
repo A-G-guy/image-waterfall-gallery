@@ -164,6 +164,7 @@ npm run build
   - 修复日期显示为 Invalid Date 的问题，正确解析思源笔记时间戳格式
   - 修复图片路径问题，自动规范化 assets 路径
   - 修复图片容器高度为0导致图片不显示的问题（CSS flex布局收缩）
+  - 修复Grid布局图片重叠问题：通过添加 `min-height: 0` 和 `grid-auto-rows: max-content` 解决flex容器与grid布局冲突导致的行高计算错误
   - 添加详细的调试日志，便于问题排查
 
 ### v1.0.2 (2025-12-24)
