@@ -4,6 +4,7 @@ import {
     fetchSyncPost,
     Setting,
     getFrontend,
+    getBackend,
 } from "siyuan";
 import "./index.scss";
 
@@ -58,6 +59,9 @@ export default class ImageWaterfallGallery extends Plugin {
 
         // 监听文档切换事件
         this.eventBus.on("switch-protyle", this.handleDocumentSwitch.bind(this));
+
+        // 监听文档加载完成事件（用于移动端更可靠的标签检测）
+        this.eventBus.on("loaded-protyle-static", this.handleDocumentLoaded.bind(this));
     }
 
     onunload() {
@@ -203,12 +207,75 @@ export default class ImageWaterfallGallery extends Plugin {
     }
 
     /**
-     * 检查文档是否有 gallery 标签
+     * 处理文档加载完成事件（用于移动端更可靠的标签检测）
      */
-    private async checkTags(rootId: string): Promise<boolean> {
+    private async handleDocumentLoaded(event: any) {
+        console.log("[DEBUG] handleDocumentLoaded called, event:", event);
+        const detail = event.detail;
+        if (!detail || !detail.protyle || !detail.protyle.block) {
+            console.log("[DEBUG] Event detail invalid, skipping");
+            return;
+        }
+
+        const rootId = detail.protyle.block.rootID;
+        console.log("[DEBUG] Document loaded, rootID:", rootId);
+
+        // 只在移动端处理此事件，避免桌面端重复触发
+        const frontend = getFrontend();
+        const isMobile = frontend === "mobile" || frontend === "browser-mobile";
+
+        if (!isMobile) {
+            console.log("[DEBUG] Not mobile platform, skipping loaded-protyle-static handler");
+            return;
+        }
+
+        console.log("[DEBUG] Mobile platform detected, checking for #gallery tag after load...");
+
+        // 如果当前已经有画廊显示，且 rootId 相同，则跳过
+        if (this.galleryOverlay && this.currentRootId === rootId) {
+            console.log("[DEBUG] Gallery already displayed for this document, skipping");
+            return;
+        }
+
+        // 更新当前 rootId
+        this.currentRootId = rootId;
+
+        // 检查文档是否有 #gallery 标签
+        const hasGalleryTag = await this.checkTags(rootId);
+        console.log("[DEBUG] Has gallery tag (after load):", hasGalleryTag);
+
+        if (hasGalleryTag) {
+            console.log("[DEBUG] Document has #gallery tag, loading gallery...");
+            await this.loadGallery(rootId);
+        } else {
+            console.log("[DEBUG] No #gallery tag, destroying gallery if exists");
+            this.destroyGallery();
+        }
+    }
+
+    /**
+     * 获取移动端重试延迟时间（最大容错策略：递增延迟）
+     * @param retryCount 当前重试次数
+     * @returns 延迟时间（毫秒）
+     */
+    private getMobileRetryDelay(retryCount: number): number {
+        // 使用递增延迟策略：100ms -> 200ms -> 400ms -> 800ms
+        // 确保即使最慢的设备也能成功加载
+        const delays = [100, 200, 400, 800];
+        const delay = delays[retryCount] || 800;
+        console.log(`[DEBUG] Retry ${retryCount}, using ${delay}ms delay (max fault tolerance)`);
+        return delay;
+    }
+
+    /**
+     * 检查文档是否有 gallery 标签
+     * @param rootId 文档 ID
+     * @param retryCount 重试次数（用于移动端延迟加载）
+     */
+    private async checkTags(rootId: string, retryCount: number = 0): Promise<boolean> {
         // 标签存储在 blocks 表的 tag 字段中,格式为 #标签1# #标签2#
         const sql = `SELECT tag FROM blocks WHERE id = '${rootId}' AND type = 'd'`;
-        console.log("[DEBUG] checkTags SQL:", sql);
+        console.log("[DEBUG] checkTags SQL:", sql, "retry:", retryCount);
 
         try {
             const result = await this.sqlQuery(sql);
@@ -220,9 +287,34 @@ export default class ImageWaterfallGallery extends Plugin {
                 // 标签格式为 #gallery#,需要匹配完整格式
                 const hasGallery = tags.includes("#gallery#") || tags.includes("gallery");
                 console.log("[DEBUG] Contains 'gallery':", hasGallery);
+
+                // 如果没有找到标签且重试次数小于4次，则在移动端重试（最大容错策略）
+                if (!hasGallery && retryCount < 4) {
+                    const frontend = getFrontend();
+                    const isMobile = frontend === "mobile" || frontend === "browser-mobile";
+                    if (isMobile) {
+                        const delay = this.getMobileRetryDelay(retryCount);
+                        console.log(`[DEBUG] Mobile platform, retrying after ${delay}ms delay...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        return this.checkTags(rootId, retryCount + 1);
+                    }
+                }
+
                 return hasGallery;
             } else {
-                console.log("[DEBUG] No tags found for this document");
+                console.log("[DEBUG] No result from query, document may not be loaded yet");
+
+                // 如果查询无结果且重试次数小于4次，则重试（最大容错策略）
+                if (retryCount < 4) {
+                    const frontend = getFrontend();
+                    const isMobile = frontend === "mobile" || frontend === "browser-mobile";
+                    if (isMobile) {
+                        const delay = this.getMobileRetryDelay(retryCount);
+                        console.log(`[DEBUG] Mobile platform, retrying after ${delay}ms delay...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        return this.checkTags(rootId, retryCount + 1);
+                    }
+                }
             }
         } catch (error) {
             console.error("[DEBUG] Error checking tags:", error);
