@@ -594,34 +594,59 @@ export default class ImageWaterfallGallery extends Plugin {
      * 提取文档中的所有图片
      */
     private async extractImages(rootId: string): Promise<string[]> {
-        // 图片存储在 spans 表中,type = 'img'
+        console.log("[DEBUG] extractImages - rootId:", rootId);
+
+        // 方法1: 优先使用 exportMdContent API（更可靠，不依赖数据库索引）
+        try {
+            console.log("[DEBUG] Trying exportMdContent API...");
+            const response = await fetchSyncPost("/api/export/exportMdContent", {
+                id: rootId,
+            });
+
+            if (response.code === 0 && response.data && response.data.content) {
+                const content = response.data.content;
+                console.log("[DEBUG] exportMdContent success, content length:", content.length);
+
+                const images: string[] = [];
+                const regex = /!\[.*?\]\((.*?)(?:\s+".*?")?\)/g;
+                let match;
+
+                while ((match = regex.exec(content)) !== null) {
+                    if (match[1]) {
+                        images.push(match[1]);
+                    }
+                }
+
+                console.log("[DEBUG] exportMdContent extracted", images.length, "images");
+                return images;
+            }
+        } catch (error) {
+            console.error("[DEBUG] exportMdContent API error:", error);
+        }
+
+        // 方法2: 如果 API 失败，使用 SQL 查询作为备用方案
+        console.log("[DEBUG] Falling back to SQL query...");
         const sql = `SELECT markdown FROM spans WHERE root_id = '${rootId}' AND type = 'img'`;
-        console.log("[DEBUG] extractImages SQL:", sql);
+        console.log("[DEBUG] SQL:", sql);
 
         try {
             const result = await this.sqlQuery(sql);
-            console.log("[DEBUG] extractImages query result count:", result.length);
+            console.log("[DEBUG] SQL query result count:", result.length);
             const images: string[] = [];
-
-            // 正则表达式匹配图片路径
             const regex = /!\[.*?\]\((.*?)(?:\s+".*?")?\)/;
 
             for (const row of result) {
                 const markdown = row.markdown || "";
-                console.log("[DEBUG] Processing markdown:", markdown);
                 const match = markdown.match(regex);
                 if (match && match[1]) {
-                    console.log("[DEBUG] Extracted image URL:", match[1]);
                     images.push(match[1]);
-                } else {
-                    console.log("[DEBUG] No match found for markdown:", markdown);
                 }
             }
 
-            console.log("[DEBUG] Total images extracted:", images.length, images);
+            console.log("[DEBUG] SQL extracted", images.length, "images");
             return images;
         } catch (error) {
-            console.error("[DEBUG] Error extracting images:", error);
+            console.error("[DEBUG] SQL query error:", error);
             return [];
         }
     }
@@ -900,14 +925,10 @@ export default class ImageWaterfallGallery extends Plugin {
             for (const row of result) {
                 console.log("[DEBUG] Processing gallery file - id:", row.id, "content:", row.content);
 
-                // 查询该文档的图片数量
-                const imageCountSql = `
-                    SELECT COUNT(*) as count
-                    FROM spans
-                    WHERE root_id = '${row.id}' AND type = 'img'
-                `;
-                const countResult = await this.sqlQuery(imageCountSql);
-                const imageCount = countResult[0]?.count || 0;
+                // 使用 extractImages 方法获取图片数量（更准确，不依赖数据库索引）
+                const images = await this.extractImages(row.id);
+                const imageCount = images.length;
+                console.log("[DEBUG] Gallery file", row.id, "has", imageCount, "images");
 
                 galleryFiles.push({
                     id: row.id,
@@ -967,14 +988,10 @@ export default class ImageWaterfallGallery extends Plugin {
                         if (jsonStr.includes("gallery")) {
                             console.log("[DEBUG] queryAllGalleryFilesByAPI - found gallery doc:", doc.id, doc.content);
 
-                            // 查询该文档的图片数量
-                            const imageCountSql = `
-                                SELECT COUNT(*) as count
-                                FROM spans
-                                WHERE root_id = '${doc.id}' AND type = 'img'
-                            `;
-                            const countResult = await this.sqlQuery(imageCountSql);
-                            const imageCount = countResult[0]?.count || 0;
+                            // 使用 extractImages 方法获取图片数量（更准确，不依赖数据库索引）
+                            const images = await this.extractImages(doc.id);
+                            const imageCount = images.length;
+                            console.log("[DEBUG] Gallery file", doc.id, "has", imageCount, "images");
 
                             galleryFiles.push({
                                 id: doc.id,
@@ -1005,6 +1022,32 @@ export default class ImageWaterfallGallery extends Plugin {
      * 获取指定画廊文件的详细图片信息
      */
     private async getGalleryImageDetails(rootId: string): Promise<IImageInfo[]> {
+        console.log("[DEBUG] getGalleryImageDetails - rootId:", rootId);
+
+        // 方法1: 先使用 exportMdContent API 获取所有图片（更可靠）
+        let allImages: string[] = [];
+        try {
+            console.log("[DEBUG] Trying exportMdContent API...");
+            const response = await fetchSyncPost("/api/export/exportMdContent", {
+                id: rootId,
+            });
+
+            if (response.code === 0 && response.data && response.data.content) {
+                const content = response.data.content;
+                const regex = /!\[.*?\]\((.*?)(?:\s+".*?")?\)/g;
+                let match;
+                while ((match = regex.exec(content)) !== null) {
+                    if (match[1]) {
+                        allImages.push(match[1]);
+                    }
+                }
+                console.log("[DEBUG] exportMdContent found", allImages.length, "images");
+            }
+        } catch (error) {
+            console.error("[DEBUG] exportMdContent API error:", error);
+        }
+
+        // 方法2: 使用 SQL 查询获取详细信息（block_id, content 等）
         const sql = `
             SELECT s.id, s.markdown, s.block_id, b.content
             FROM spans s
@@ -1014,17 +1057,16 @@ export default class ImageWaterfallGallery extends Plugin {
         `;
         console.log("[DEBUG] getGalleryImageDetails SQL:", sql);
 
+        const imageInfos: IImageInfo[] = [];
+        const regex = /!\[.*?\]\((.*?)(?:\s+".*?")?\)/;
+        const processedImages = new Set<string>();
+
         try {
             const result = await this.sqlQuery(sql);
-            console.log("[DEBUG] getGalleryImageDetails result count:", result.length);
-            console.log("[DEBUG] getGalleryImageDetails raw result:", result);
-
-            const imageInfos: IImageInfo[] = [];
-            const regex = /!\[.*?\]\((.*?)(?:\s+".*?")?\)/;
+            console.log("[DEBUG] SQL result count:", result.length);
 
             for (const row of result) {
                 const markdown = row.markdown || "";
-                console.log("[DEBUG] Processing image - id:", row.id, "markdown:", markdown, "block_id:", row.block_id);
                 const match = markdown.match(regex);
                 if (match && match[1]) {
                     const imageInfo = {
@@ -1034,20 +1076,30 @@ export default class ImageWaterfallGallery extends Plugin {
                         blockId: row.block_id,
                         content: row.content || "",
                     };
-                    console.log("[DEBUG] Extracted image info:", imageInfo);
                     imageInfos.push(imageInfo);
-                } else {
-                    console.log("[DEBUG] Failed to extract image from markdown:", markdown);
+                    processedImages.add(match[1]);
                 }
             }
-
-            console.log("[DEBUG] Total image details extracted:", imageInfos.length);
-            console.log("[DEBUG] Image infos array:", imageInfos);
-            return imageInfos;
         } catch (error) {
-            console.error("[DEBUG] Error getting image details:", error);
-            return [];
+            console.error("[DEBUG] SQL query error:", error);
         }
+
+        // 方法3: 补充 SQL 中缺失的图片（spans 表索引延迟导致的）
+        for (const imageSrc of allImages) {
+            if (!processedImages.has(imageSrc)) {
+                console.log("[DEBUG] Adding missing image from API:", imageSrc);
+                imageInfos.push({
+                    id: `temp-${Date.now()}-${Math.random()}`,
+                    markdown: `![](${imageSrc})`,
+                    src: imageSrc,
+                    blockId: "",
+                    content: "",
+                });
+            }
+        }
+
+        console.log("[DEBUG] Total image details:", imageInfos.length);
+        return imageInfos;
     }
 
     /**
