@@ -7,6 +7,7 @@ import {
     getBackend,
 } from "siyuan";
 import "./index.scss";
+import pluginJson from "../plugin.json";
 
 const STORAGE_NAME = "gallery-settings";
 
@@ -109,6 +110,12 @@ export default class ImageWaterfallGallery extends Plugin {
      * 初始化设置界面
      */
     private initSettings() {
+        // 版本号显示
+        const versionDisplay = document.createElement("span");
+        versionDisplay.className = "b3-label__text";
+        versionDisplay.textContent = `v${pluginJson.version}`;
+        versionDisplay.style.color = "var(--b3-theme-on-surface-light)";
+
         const imageOrderSelect = document.createElement("select");
         imageOrderSelect.className = "b3-select fn__flex-center";
         imageOrderSelect.innerHTML = `
@@ -140,6 +147,13 @@ export default class ImageWaterfallGallery extends Plugin {
             this.showGalleryManagement();
         };
 
+        const manualDetectBtn = document.createElement("button");
+        manualDetectBtn.className = "b3-button b3-button--outline";
+        manualDetectBtn.textContent = "手动检测画廊";
+        manualDetectBtn.onclick = async () => {
+            await this.manualDetectGallery();
+        };
+
         this.setting = new Setting({
             confirmCallback: () => {
                 this.settings.imageOrder = imageOrderSelect.value as "random" | "sequential" | "reverse";
@@ -148,6 +162,12 @@ export default class ImageWaterfallGallery extends Plugin {
                 this.saveData(STORAGE_NAME, this.settings);
                 showMessage("设置已保存");
             }
+        });
+
+        this.setting.addItem({
+            title: "插件版本",
+            description: "当前插件版本号",
+            actionElement: versionDisplay,
         });
 
         this.setting.addItem({
@@ -173,6 +193,12 @@ export default class ImageWaterfallGallery extends Plugin {
             description: "查看和管理所有画廊文件",
             actionElement: galleryManagementBtn,
         });
+
+        this.setting.addItem({
+            title: "手动检测画廊",
+            description: "手动检测当前文档的画廊标签（使用增强重试机制）",
+            actionElement: manualDetectBtn,
+        });
     }
 
     /**
@@ -180,6 +206,15 @@ export default class ImageWaterfallGallery extends Plugin {
      */
     private async handleDocumentSwitch(event: any) {
         console.log("[DEBUG] handleDocumentSwitch called, event:", event);
+
+        // 在移动端，只使用 loaded-protyle-static 事件，避免事件冲突
+        const frontend = getFrontend();
+        const isMobile = frontend === "mobile" || frontend === "browser-mobile";
+        if (isMobile) {
+            console.log("[DEBUG] Mobile platform detected, skipping switch-protyle handler");
+            return;
+        }
+
         const detail = event.detail;
         if (!detail || !detail.protyle || !detail.protyle.block) {
             console.log("[DEBUG] Event detail invalid, skipping");
@@ -231,14 +266,12 @@ export default class ImageWaterfallGallery extends Plugin {
 
         console.log("[DEBUG] Mobile platform detected, checking for #gallery tag after load...");
 
-        // 如果当前已经有画廊显示，且 rootId 相同，则跳过
-        if (this.galleryOverlay && this.currentRootId === rootId) {
-            console.log("[DEBUG] Gallery already displayed for this document, skipping");
-            return;
-        }
-
         // 更新当前 rootId
         this.currentRootId = rootId;
+
+        // 在移动端添加初始延迟，给数据库更多时间同步标签数据
+        console.log("[DEBUG] Waiting 500ms for database sync...");
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         // 检查文档是否有 #gallery 标签
         const hasGalleryTag = await this.checkTags(rootId);
@@ -254,17 +287,128 @@ export default class ImageWaterfallGallery extends Plugin {
     }
 
     /**
-     * 获取移动端重试延迟时间（最大容错策略：递增延迟）
+     * 手动检测当前文档的画廊标签（使用最强保障机制）
+     */
+    private async manualDetectGallery() {
+        console.log("[DEBUG] manualDetectGallery called");
+
+        try {
+            // 显示开始检测的消息
+            showMessage("开始检测画廊标签...");
+
+            // 获取当前打开的文档
+            if (!this.currentRootId) {
+                showMessage("未找到当前文档，请先打开一个文档");
+                return;
+            }
+
+            const rootId = this.currentRootId;
+            console.log("[DEBUG] Manual detect for rootID:", rootId);
+
+            // 使用最长的初始延迟（1000ms），给数据库充足的同步时间
+            console.log("[DEBUG] Waiting 1000ms for database sync (manual detect)...");
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // 使用增强版的标签检测，最多重试10次
+            const hasGalleryTag = await this.checkTagsWithMaxRetry(rootId);
+            console.log("[DEBUG] Manual detect result:", hasGalleryTag);
+
+            if (hasGalleryTag) {
+                showMessage("✓ 检测到画廊标签，正在加载画廊...");
+                await this.loadGallery(rootId);
+                showMessage("✓ 画廊加载成功");
+            } else {
+                showMessage("✗ 未检测到画廊标签");
+                this.destroyGallery();
+            }
+        } catch (error) {
+            console.error("[DEBUG] Error in manual detect:", error);
+            showMessage("✗ 检测失败：" + error.message);
+        }
+    }
+
+    /**
+     * 获取移动端重试延迟时间（增强容错策略：递增延迟）
      * @param retryCount 当前重试次数
      * @returns 延迟时间（毫秒）
      */
     private getMobileRetryDelay(retryCount: number): number {
-        // 使用递增延迟策略：100ms -> 200ms -> 400ms -> 800ms
+        // 使用递增延迟策略：200ms -> 400ms -> 600ms -> 800ms -> 1000ms -> 1200ms
         // 确保即使最慢的设备也能成功加载
-        const delays = [100, 200, 400, 800];
-        const delay = delays[retryCount] || 800;
-        console.log(`[DEBUG] Retry ${retryCount}, using ${delay}ms delay (max fault tolerance)`);
+        const delays = [200, 400, 600, 800, 1000, 1200];
+        const delay = delays[retryCount] || 1200;
+        console.log(`[DEBUG] Retry ${retryCount + 1}/6, using ${delay}ms delay (enhanced fault tolerance)`);
         return delay;
+    }
+
+    /**
+     * 获取手动检测的重试延迟时间（最强保障策略：更长的递增延迟）
+     * @param retryCount 当前重试次数
+     * @returns 延迟时间（毫秒）
+     */
+    private getMaxRetryDelay(retryCount: number): number {
+        // 使用更长的递增延迟策略：300ms -> 500ms -> 700ms -> 900ms -> 1100ms -> 1300ms -> 1500ms -> 1700ms -> 1900ms -> 2100ms
+        // 最强保障机制，确保在任何情况下都能成功
+        const delays = [300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900, 2100];
+        const delay = delays[retryCount] || 2100;
+        console.log(`[DEBUG] Max retry ${retryCount + 1}/10, using ${delay}ms delay (strongest safeguard)`);
+        return delay;
+    }
+
+    /**
+     * 使用最强保障机制检查文档是否有 gallery 标签（最多重试10次）
+     * @param rootId 文档 ID
+     * @param retryCount 重试次数
+     */
+    private async checkTagsWithMaxRetry(rootId: string, retryCount: number = 0): Promise<boolean> {
+        // 标签存储在 blocks 表的 tag 字段中,格式为 #标签1# #标签2#
+        const sql = `SELECT tag FROM blocks WHERE id = '${rootId}' AND type = 'd'`;
+        console.log("[DEBUG] checkTagsWithMaxRetry SQL:", sql, "retry:", retryCount);
+
+        try {
+            const result = await this.sqlQuery(sql);
+            console.log("[DEBUG] checkTagsWithMaxRetry result:", result);
+
+            if (result && result.length > 0) {
+                const tags = result[0].tag || "";
+                console.log("[DEBUG] Tags found:", tags);
+                // 标签格式为 #gallery#,需要匹配完整格式
+                const hasGallery = tags.includes("#gallery#") || tags.includes("gallery");
+                console.log("[DEBUG] Contains 'gallery':", hasGallery);
+
+                // 如果没有找到标签且重试次数小于10次，则重试（最强保障策略）
+                if (!hasGallery && retryCount < 10) {
+                    const delay = this.getMaxRetryDelay(retryCount);
+                    console.log(`[DEBUG] Retrying after ${delay}ms delay (max retry)...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return this.checkTagsWithMaxRetry(rootId, retryCount + 1);
+                }
+
+                return hasGallery;
+            } else {
+                console.log("[DEBUG] No result from query, document may not be loaded yet");
+
+                // 如果查询无结果且重试次数小于10次，则重试（最强保障策略）
+                if (retryCount < 10) {
+                    const delay = this.getMaxRetryDelay(retryCount);
+                    console.log(`[DEBUG] Retrying after ${delay}ms delay (max retry)...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return this.checkTagsWithMaxRetry(rootId, retryCount + 1);
+                }
+            }
+        } catch (error) {
+            console.error("[DEBUG] Error checking tags (max retry):", error);
+
+            // 即使出错也重试
+            if (retryCount < 10) {
+                const delay = this.getMaxRetryDelay(retryCount);
+                console.log(`[DEBUG] Error occurred, retrying after ${delay}ms delay...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return this.checkTagsWithMaxRetry(rootId, retryCount + 1);
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -288,8 +432,8 @@ export default class ImageWaterfallGallery extends Plugin {
                 const hasGallery = tags.includes("#gallery#") || tags.includes("gallery");
                 console.log("[DEBUG] Contains 'gallery':", hasGallery);
 
-                // 如果没有找到标签且重试次数小于4次，则在移动端重试（最大容错策略）
-                if (!hasGallery && retryCount < 4) {
+                // 如果没有找到标签且重试次数小于6次，则在移动端重试（增强容错策略）
+                if (!hasGallery && retryCount < 6) {
                     const frontend = getFrontend();
                     const isMobile = frontend === "mobile" || frontend === "browser-mobile";
                     if (isMobile) {
@@ -304,8 +448,8 @@ export default class ImageWaterfallGallery extends Plugin {
             } else {
                 console.log("[DEBUG] No result from query, document may not be loaded yet");
 
-                // 如果查询无结果且重试次数小于4次，则重试（最大容错策略）
-                if (retryCount < 4) {
+                // 如果查询无结果且重试次数小于6次，则重试（增强容错策略）
+                if (retryCount < 6) {
                     const frontend = getFrontend();
                     const isMobile = frontend === "mobile" || frontend === "browser-mobile";
                     if (isMobile) {

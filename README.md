@@ -145,6 +145,15 @@ npm run build
 
 ## 📝 Changelog
 
+### v1.0.2 (2025-12-24)
+
+- ✨ Added dynamic version number display in plugin settings
+- 🐛 Fixed mobile gallery tag recognition issue with enhanced retry mechanism
+- 🔧 Optimized event handling: desktop uses `switch-protyle`, mobile uses `loaded-protyle-static`
+- ⚡ Enhanced retry mechanism: 6 retries with 4200ms total delay for mobile
+- 🎯 Added manual gallery detection button with strongest safeguards (10 retries, 13000ms total delay)
+- 📱 Added 500ms initial delay for mobile to ensure database sync
+
 ### v1.0.1 (2025-12-24)
 
 - 🐛 Fixed platform detection logic, support independent image width settings for desktop and mobile
