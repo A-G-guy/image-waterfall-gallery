@@ -1028,14 +1028,13 @@ export default class ImageWaterfallGallery extends Plugin {
         };
         infoBar.appendChild(sortSelect);
 
-        const addImageBtn = document.createElement("button");
-        addImageBtn.className = "b3-button b3-button--outline";
-        addImageBtn.textContent = "+ 添加图片";
-        addImageBtn.style.marginLeft = "auto";
-        addImageBtn.onclick = () => {
-            this.showAddImageDialog(file);
-        };
-        infoBar.appendChild(addImageBtn);
+        // 添加操作说明
+        const tipText = document.createElement("span");
+        tipText.textContent = "提示：添加或删除图片请直接编辑文档";
+        tipText.style.marginLeft = "auto";
+        tipText.style.color = "var(--b3-theme-on-surface-light)";
+        tipText.style.fontSize = "12px";
+        infoBar.appendChild(tipText);
 
         overlay.appendChild(infoBar);
 
@@ -1161,112 +1160,6 @@ export default class ImageWaterfallGallery extends Plugin {
         item.appendChild(actionsContainer);
 
         return item;
-    }
-
-    /**
-     * 显示添加图片对话框
-     */
-    private showAddImageDialog(file: IGalleryFile) {
-        // 创建文件选择器
-        const fileInput = document.createElement("input");
-        fileInput.type = "file";
-        fileInput.accept = "image/*";
-        fileInput.style.display = "none";
-
-        fileInput.onchange = async (e: Event) => {
-            const target = e.target as HTMLInputElement;
-            const selectedFile = target.files?.[0];
-
-            if (!selectedFile) {
-                return;
-            }
-
-            // 上传文件到附件
-            await this.uploadAndAddImage(file, selectedFile);
-
-            // 清理
-            document.body.removeChild(fileInput);
-        };
-
-        // 添加到页面并触发点击
-        document.body.appendChild(fileInput);
-        fileInput.click();
-    }
-
-    /**
-     * 上传文件并添加到画廊
-     */
-    private async uploadAndAddImage(file: IGalleryFile, imageFile: File) {
-        try {
-            showMessage("正在上传图片...");
-
-            // 获取文档的笔记本信息
-            const blockInfo = await fetchSyncPost("/api/block/getBlockInfo", { id: file.id });
-            if (blockInfo.code !== 0 || !blockInfo.data) {
-                showMessage("获取文档信息失败");
-                return;
-            }
-
-            const box = blockInfo.data.box;
-            console.log("[DEBUG] Document box:", box);
-
-            // 创建 FormData
-            const formData = new FormData();
-            formData.append("assetsDirPath", `/data/${box}/assets/`);
-            formData.append("file[]", imageFile);
-
-            // 上传文件
-            const response = await fetch("/api/asset/upload", {
-                method: "POST",
-                body: formData,
-            });
-
-            const result = await response.json();
-            console.log("[DEBUG] Upload result:", result);
-
-            if (result.code === 0 && result.data.succMap) {
-                // 获取上传后的文件路径
-                const uploadedPath = Object.values(result.data.succMap)[0] as string;
-                console.log("[DEBUG] File uploaded successfully:", uploadedPath);
-
-                // 添加图片到画廊
-                await this.addImageToGallery(file, uploadedPath);
-            } else {
-                showMessage(`上传失败: ${result.msg || "未知错误"}`);
-                console.error("[DEBUG] Upload failed:", result);
-            }
-        } catch (error) {
-            console.error("[DEBUG] Error uploading image:", error);
-            showMessage("上传图片失败");
-        }
-    }
-
-    /**
-     * 添加图片到画廊
-     */
-    private async addImageToGallery(file: IGalleryFile, imagePath: string) {
-        try {
-            // 构造图片 markdown
-            const imageMarkdown = `![](${imagePath})`;
-
-            // 在文档末尾插入图片
-            const response = await fetchSyncPost("/api/block/appendBlock", {
-                dataType: "markdown",
-                data: imageMarkdown,
-                parentID: file.id,
-            });
-
-            if (response.code === 0) {
-                showMessage("图片添加成功");
-                // 刷新单个画廊管理界面
-                this.showSingleGalleryManagement(file);
-            } else {
-                showMessage(`添加失败: ${response.msg}`);
-            }
-        } catch (error) {
-            console.error("[DEBUG] Error adding image:", error);
-            showMessage("添加图片失败");
-        }
     }
 
     /**
