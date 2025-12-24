@@ -48,6 +48,9 @@ export default class ImageWaterfallGallery extends Plugin {
     private settings: IGallerySettings;
     private currentSortOrder: SortOrder = "date-desc";
     private currentImageSortOrder: ImageSortOrder = "block-order";
+    private lastProcessedRootId: string = ""; // 防抖：记录最后处理的文档 ID
+    private lastProcessedTime: number = 0; // 防抖：记录最后处理的时间戳
+    private galleryLoadedForRootId: string = ""; // 记录当前已加载画廊的文档 ID
 
     async onload() {
         console.log("Loading Image Waterfall Gallery Plugin");
@@ -196,7 +199,7 @@ export default class ImageWaterfallGallery extends Plugin {
 
         this.setting.addItem({
             title: "手动检测画廊",
-            description: "手动检测当前文档的画廊标签（使用增强重试机制）",
+            description: "扫描所有文档并显示画廊列表（SQL + API 双重保障，宽松容错）",
             actionElement: manualDetectBtn,
         });
     }
@@ -266,8 +269,33 @@ export default class ImageWaterfallGallery extends Plugin {
 
         console.log("[DEBUG] Mobile platform detected, checking for #gallery tag after load...");
 
-        // 更新当前 rootId
-        this.currentRootId = rootId;
+        // 检查是否切换到了不同的文档
+        const isDocumentChanged = rootId !== this.lastProcessedRootId;
+
+        // 移动端最高权限：如果画廊已经加载，永不自动关闭，只能用户手动关闭
+        if (this.galleryLoadedForRootId) {
+            console.log("[DEBUG] Mobile: Gallery already loaded, NEVER auto-close (highest priority)");
+            return;
+        }
+
+        if (isDocumentChanged) {
+            console.log("[DEBUG] Document changed, processing new document:", rootId);
+            // 文档切换了，更新记录
+            this.lastProcessedRootId = rootId;
+            this.lastProcessedTime = Date.now();
+            this.currentRootId = rootId;
+        } else {
+            // 同一个文档，检查是否需要防抖
+            const now = Date.now();
+            const timeSinceLastProcess = now - this.lastProcessedTime;
+
+            if (timeSinceLastProcess < 10000) {
+                console.log(`[DEBUG] Debounce: Same document processed ${timeSinceLastProcess}ms ago, skipping`);
+                return;
+            }
+            console.log("[DEBUG] Same document, but enough time passed, re-checking...");
+            this.lastProcessedTime = now;
+        }
 
         // 在移动端添加初始延迟，给数据库更多时间同步标签数据
         console.log("[DEBUG] Waiting 500ms for database sync...");
@@ -281,46 +309,22 @@ export default class ImageWaterfallGallery extends Plugin {
             console.log("[DEBUG] Document has #gallery tag, loading gallery...");
             await this.loadGallery(rootId);
         } else {
-            console.log("[DEBUG] No #gallery tag, destroying gallery if exists");
-            this.destroyGallery();
+            console.log("[DEBUG] No #gallery tag, but mobile never auto-closes gallery");
         }
     }
 
     /**
-     * 手动检测当前文档的画廊标签（使用最强保障机制）
+     * 手动检测画廊（扫描所有文档并显示画廊列表）
      */
     private async manualDetectGallery() {
-        console.log("[DEBUG] manualDetectGallery called");
+        console.log("[DEBUG] manualDetectGallery called - scanning all documents");
 
         try {
             // 显示开始检测的消息
-            showMessage("开始检测画廊标签...");
+            showMessage("开始扫描所有文档...");
 
-            // 获取当前打开的文档
-            if (!this.currentRootId) {
-                showMessage("未找到当前文档，请先打开一个文档");
-                return;
-            }
-
-            const rootId = this.currentRootId;
-            console.log("[DEBUG] Manual detect for rootID:", rootId);
-
-            // 使用最长的初始延迟（1000ms），给数据库充足的同步时间
-            console.log("[DEBUG] Waiting 1000ms for database sync (manual detect)...");
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            // 使用增强版的标签检测，最多重试10次
-            const hasGalleryTag = await this.checkTagsWithMaxRetry(rootId);
-            console.log("[DEBUG] Manual detect result:", hasGalleryTag);
-
-            if (hasGalleryTag) {
-                showMessage("✓ 检测到画廊标签，正在加载画廊...");
-                await this.loadGallery(rootId);
-                showMessage("✓ 画廊加载成功");
-            } else {
-                showMessage("✗ 未检测到画廊标签");
-                this.destroyGallery();
-            }
+            // 调用画廊管理界面，会自动使用增强版的查询方法（SQL + API 双重保障）
+            await this.showGalleryManagement();
         } catch (error) {
             console.error("[DEBUG] Error in manual detect:", error);
             showMessage("✗ 检测失败：" + error.message);
@@ -361,54 +365,69 @@ export default class ImageWaterfallGallery extends Plugin {
      * @param retryCount 重试次数
      */
     private async checkTagsWithMaxRetry(rootId: string, retryCount: number = 0): Promise<boolean> {
-        // 标签存储在 blocks 表的 tag 字段中,格式为 #标签1# #标签2#
-        const sql = `SELECT tag FROM blocks WHERE id = '${rootId}' AND type = 'd'`;
-        console.log("[DEBUG] checkTagsWithMaxRetry SQL:", sql, "retry:", retryCount);
+        console.log("[DEBUG] ========== checkTagsWithMaxRetry START ==========");
+        console.log("[DEBUG] rootId:", rootId);
+        console.log("[DEBUG] retryCount:", retryCount);
 
+        let hasGallery = false;
+
+        // 方法1: 优先使用 SQL 查询
         try {
+            const sql = `SELECT id, type, tag, content FROM blocks WHERE id = '${rootId}'`;
+            console.log("[DEBUG] [MaxRetry] SQL query:", sql);
+
             const result = await this.sqlQuery(sql);
-            console.log("[DEBUG] checkTagsWithMaxRetry result:", result);
+            console.log("[DEBUG] [MaxRetry] SQL result:", JSON.stringify(result, null, 2));
 
             if (result && result.length > 0) {
-                const tags = result[0].tag || "";
-                console.log("[DEBUG] Tags found:", tags);
-                // 标签格式为 #gallery#,需要匹配完整格式
-                const hasGallery = tags.includes("#gallery#") || tags.includes("gallery");
-                console.log("[DEBUG] Contains 'gallery':", hasGallery);
-
-                // 如果没有找到标签且重试次数小于10次，则重试（最强保障策略）
-                if (!hasGallery && retryCount < 10) {
-                    const delay = this.getMaxRetryDelay(retryCount);
-                    console.log(`[DEBUG] Retrying after ${delay}ms delay (max retry)...`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    return this.checkTagsWithMaxRetry(rootId, retryCount + 1);
-                }
-
-                return hasGallery;
+                const block = result[0];
+                const tags = block.tag || "";
+                hasGallery = tags.includes("#gallery#") || tags.includes("gallery");
+                console.log("[DEBUG] [MaxRetry] SQL method - Contains 'gallery':", hasGallery);
             } else {
-                console.log("[DEBUG] No result from query, document may not be loaded yet");
-
-                // 如果查询无结果且重试次数小于10次，则重试（最强保障策略）
-                if (retryCount < 10) {
-                    const delay = this.getMaxRetryDelay(retryCount);
-                    console.log(`[DEBUG] Retrying after ${delay}ms delay (max retry)...`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    return this.checkTagsWithMaxRetry(rootId, retryCount + 1);
-                }
+                console.log("[DEBUG] [MaxRetry] SQL query returned no results");
             }
-        } catch (error) {
-            console.error("[DEBUG] Error checking tags (max retry):", error);
+        } catch (sqlError) {
+            console.error("[DEBUG] [MaxRetry] SQL query error:", sqlError);
+        }
 
-            // 即使出错也重试
-            if (retryCount < 10) {
-                const delay = this.getMaxRetryDelay(retryCount);
-                console.log(`[DEBUG] Error occurred, retrying after ${delay}ms delay...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                return this.checkTagsWithMaxRetry(rootId, retryCount + 1);
+        // 方法2: 如果 SQL 未找到标签，尝试使用 getDocInfo API 作为兜底
+        if (!hasGallery) {
+            console.log("[DEBUG] [MaxRetry] Trying getDocInfo API as fallback...");
+            try {
+                const response = await fetchSyncPost("/api/block/getDocInfo", { id: rootId });
+                console.log("[DEBUG] [MaxRetry] getDocInfo API response:", JSON.stringify(response, null, 2));
+
+                if (response.code === 0 && response.data) {
+                    const docInfo = response.data;
+                    console.log("[DEBUG] [MaxRetry] getDocInfo data keys:", Object.keys(docInfo));
+
+                    // ial 是一个对象，直接访问 ial.tags
+                    if (docInfo.ial && docInfo.ial.tags) {
+                        const tags = docInfo.ial.tags;
+                        console.log("[DEBUG] [MaxRetry] Tags from ial.tags:", tags);
+                        hasGallery = tags.includes("gallery");
+                    }
+
+                    console.log("[DEBUG] [MaxRetry] API method - Contains 'gallery':", hasGallery);
+                }
+            } catch (apiError) {
+                console.error("[DEBUG] [MaxRetry] getDocInfo API error:", apiError);
             }
         }
 
-        return false;
+        console.log("[DEBUG] [MaxRetry] Final result - hasGallery:", hasGallery);
+
+        // 如果没有找到标签且重试次数小于10次，则重试
+        if (!hasGallery && retryCount < 10) {
+            const delay = this.getMaxRetryDelay(retryCount);
+            console.log(`[DEBUG] [MaxRetry] Retrying after ${delay}ms delay...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return this.checkTagsWithMaxRetry(rootId, retryCount + 1);
+        }
+
+        console.log("[DEBUG] ========== checkTagsWithMaxRetry END ==========");
+        return hasGallery;
     }
 
     /**
@@ -417,54 +436,88 @@ export default class ImageWaterfallGallery extends Plugin {
      * @param retryCount 重试次数（用于移动端延迟加载）
      */
     private async checkTags(rootId: string, retryCount: number = 0): Promise<boolean> {
-        // 标签存储在 blocks 表的 tag 字段中,格式为 #标签1# #标签2#
-        const sql = `SELECT tag FROM blocks WHERE id = '${rootId}' AND type = 'd'`;
-        console.log("[DEBUG] checkTags SQL:", sql, "retry:", retryCount);
+        console.log("[DEBUG] ========== checkTags START ==========");
+        console.log("[DEBUG] rootId:", rootId);
+        console.log("[DEBUG] retryCount:", retryCount);
+        console.log("[DEBUG] Platform:", getFrontend());
 
+        let hasGallery = false;
+
+        // 方法1: 优先使用 SQL 查询（桌面端已验证可用）
         try {
+            const sql = `SELECT id, type, tag, content FROM blocks WHERE id = '${rootId}'`;
+            console.log("[DEBUG] SQL query:", sql);
+
             const result = await this.sqlQuery(sql);
-            console.log("[DEBUG] checkTags result:", result);
+            console.log("[DEBUG] SQL result:", JSON.stringify(result, null, 2));
 
             if (result && result.length > 0) {
-                const tags = result[0].tag || "";
-                console.log("[DEBUG] Tags found:", tags);
-                // 标签格式为 #gallery#,需要匹配完整格式
-                const hasGallery = tags.includes("#gallery#") || tags.includes("gallery");
-                console.log("[DEBUG] Contains 'gallery':", hasGallery);
+                const block = result[0];
+                console.log("[DEBUG] Block found via SQL:");
+                console.log("[DEBUG]   - id:", block.id);
+                console.log("[DEBUG]   - type:", block.type);
+                console.log("[DEBUG]   - tag:", block.tag);
+                console.log("[DEBUG]   - content:", block.content);
 
-                // 如果没有找到标签且重试次数小于6次，则在移动端重试（增强容错策略）
-                if (!hasGallery && retryCount < 6) {
-                    const frontend = getFrontend();
-                    const isMobile = frontend === "mobile" || frontend === "browser-mobile";
-                    if (isMobile) {
-                        const delay = this.getMobileRetryDelay(retryCount);
-                        console.log(`[DEBUG] Mobile platform, retrying after ${delay}ms delay...`);
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                        return this.checkTags(rootId, retryCount + 1);
-                    }
-                }
+                const tags = block.tag || "";
+                console.log("[DEBUG] Tags string:", tags);
+                console.log("[DEBUG] Tags type:", typeof tags);
+                console.log("[DEBUG] Tags length:", tags.length);
 
-                return hasGallery;
+                hasGallery = tags.includes("#gallery#") || tags.includes("gallery");
+                console.log("[DEBUG] SQL method - Contains 'gallery':", hasGallery);
             } else {
-                console.log("[DEBUG] No result from query, document may not be loaded yet");
-
-                // 如果查询无结果且重试次数小于6次，则重试（增强容错策略）
-                if (retryCount < 6) {
-                    const frontend = getFrontend();
-                    const isMobile = frontend === "mobile" || frontend === "browser-mobile";
-                    if (isMobile) {
-                        const delay = this.getMobileRetryDelay(retryCount);
-                        console.log(`[DEBUG] Mobile platform, retrying after ${delay}ms delay...`);
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                        return this.checkTags(rootId, retryCount + 1);
-                    }
-                }
+                console.log("[DEBUG] SQL query returned no results");
             }
-        } catch (error) {
-            console.error("[DEBUG] Error checking tags:", error);
+        } catch (sqlError) {
+            console.error("[DEBUG] SQL query error:", sqlError);
         }
 
-        return false;
+        // 方法2: 如果 SQL 未找到标签，尝试使用 getDocInfo API 作为兜底
+        if (!hasGallery) {
+            console.log("[DEBUG] Trying getDocInfo API as fallback...");
+            try {
+                const response = await fetchSyncPost("/api/block/getDocInfo", { id: rootId });
+                console.log("[DEBUG] getDocInfo API response:", JSON.stringify(response, null, 2));
+
+                if (response.code === 0 && response.data) {
+                    const docInfo = response.data;
+                    console.log("[DEBUG] getDocInfo data keys:", Object.keys(docInfo));
+                    console.log("[DEBUG] Full docInfo:", JSON.stringify(docInfo, null, 2));
+
+                    // ial 是一个对象，直接访问 ial.tags
+                    if (docInfo.ial && docInfo.ial.tags) {
+                        const tags = docInfo.ial.tags;
+                        console.log("[DEBUG] Tags from ial.tags:", tags);
+                        console.log("[DEBUG] Tags type:", typeof tags);
+                        hasGallery = tags.includes("gallery");
+                    }
+
+                    console.log("[DEBUG] API method - Contains 'gallery':", hasGallery);
+                } else {
+                    console.log("[DEBUG] getDocInfo API failed, code:", response.code, "msg:", response.msg);
+                }
+            } catch (apiError) {
+                console.error("[DEBUG] getDocInfo API error:", apiError);
+            }
+        }
+
+        console.log("[DEBUG] Final result - hasGallery:", hasGallery);
+
+        // 如果没有找到标签且重试次数小于6次，则在移动端重试
+        if (!hasGallery && retryCount < 6) {
+            const frontend = getFrontend();
+            const isMobile = frontend === "mobile" || frontend === "browser-mobile";
+            if (isMobile) {
+                const delay = this.getMobileRetryDelay(retryCount);
+                console.log(`[DEBUG] Mobile platform, retrying after ${delay}ms delay...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return this.checkTags(rootId, retryCount + 1);
+            }
+        }
+
+        console.log("[DEBUG] ========== checkTags END ==========");
+        return hasGallery;
     }
 
     /**
@@ -505,6 +558,10 @@ export default class ImageWaterfallGallery extends Plugin {
 
         // 渲染画廊
         this.renderGallery(images);
+
+        // 记录当前已加载画廊的文档 ID
+        this.galleryLoadedForRootId = rootId;
+        console.log("[DEBUG] Gallery loaded successfully for document:", rootId);
     }
 
     /**
@@ -674,10 +731,15 @@ export default class ImageWaterfallGallery extends Plugin {
      */
     private destroyGallery() {
         console.log("[DEBUG] destroyGallery called, overlay exists:", !!this.galleryOverlay);
+
+        // 添加堆栈跟踪，查看是谁调用了 destroyGallery
+        console.log("[DEBUG] destroyGallery call stack:", new Error().stack);
+
         if (this.galleryOverlay) {
             console.log("[DEBUG] Removing overlay from DOM");
             this.galleryOverlay.remove();
             this.galleryOverlay = null;
+            this.galleryLoadedForRootId = ""; // 清除加载标志
             console.log("[DEBUG] Gallery destroyed");
         }
     }
@@ -797,9 +859,29 @@ export default class ImageWaterfallGallery extends Plugin {
     }
 
     /**
-     * 查询所有画廊文件
+     * 查询所有画廊文件（增强版：SQL + API 双重保障）
      */
     private async queryAllGalleryFiles(): Promise<IGalleryFile[]> {
+        // 先尝试 SQL 方法
+        console.log("[DEBUG] queryAllGalleryFiles - trying SQL method first...");
+        const sqlResult = await this.queryAllGalleryFilesBySQL();
+
+        if (sqlResult.length > 0) {
+            console.log("[DEBUG] queryAllGalleryFiles - SQL method succeeded, found", sqlResult.length, "files");
+            return sqlResult;
+        }
+
+        // SQL 失败或返回空，使用 API 方法作为兜底
+        console.log("[DEBUG] queryAllGalleryFiles - SQL method failed or returned empty, trying API method...");
+        const apiResult = await this.queryAllGalleryFilesByAPI();
+        console.log("[DEBUG] queryAllGalleryFiles - API method found", apiResult.length, "files");
+        return apiResult;
+    }
+
+    /**
+     * 通过 SQL 查询所有画廊文件
+     */
+    private async queryAllGalleryFilesBySQL(): Promise<IGalleryFile[]> {
         // 查询所有带有 #gallery# 标签的文档
         const sql = `
             SELECT id, content, created, updated
@@ -807,17 +889,16 @@ export default class ImageWaterfallGallery extends Plugin {
             WHERE type = 'd' AND (tag LIKE '%#gallery#%' OR tag LIKE '%gallery%')
             ORDER BY created DESC
         `;
-        console.log("[DEBUG] queryAllGalleryFiles SQL:", sql);
+        console.log("[DEBUG] queryAllGalleryFilesBySQL SQL:", sql);
 
         try {
             const result = await this.sqlQuery(sql);
-            console.log("[DEBUG] queryAllGalleryFiles result count:", result.length);
-            console.log("[DEBUG] queryAllGalleryFiles raw result:", result);
+            console.log("[DEBUG] queryAllGalleryFilesBySQL result count:", result.length);
 
             const galleryFiles: IGalleryFile[] = [];
 
             for (const row of result) {
-                console.log("[DEBUG] Processing gallery file - id:", row.id, "content:", row.content, "created:", row.created, "updated:", row.updated);
+                console.log("[DEBUG] Processing gallery file - id:", row.id, "content:", row.content);
 
                 // 查询该文档的图片数量
                 const imageCountSql = `
@@ -827,7 +908,6 @@ export default class ImageWaterfallGallery extends Plugin {
                 `;
                 const countResult = await this.sqlQuery(imageCountSql);
                 const imageCount = countResult[0]?.count || 0;
-                console.log("[DEBUG] Gallery file image count:", imageCount);
 
                 galleryFiles.push({
                     id: row.id,
@@ -838,11 +918,85 @@ export default class ImageWaterfallGallery extends Plugin {
                 });
             }
 
-            console.log("[DEBUG] Total gallery files found:", galleryFiles.length);
-            console.log("[DEBUG] Gallery files array:", galleryFiles);
+            console.log("[DEBUG] queryAllGalleryFilesBySQL - Total found:", galleryFiles.length);
             return galleryFiles;
         } catch (error) {
-            console.error("[DEBUG] Error querying gallery files:", error);
+            console.error("[DEBUG] queryAllGalleryFilesBySQL error:", error);
+            return [];
+        }
+    }
+
+    /**
+     * 通过 API 遍历所有文档查询画廊文件（兜底方案）
+     */
+    private async queryAllGalleryFilesByAPI(): Promise<IGalleryFile[]> {
+        console.log("[DEBUG] queryAllGalleryFilesByAPI - starting API scan...");
+        showMessage("正在扫描所有文档...");
+
+        try {
+            // 查询所有文档 ID
+            const sql = `SELECT id, content, created, updated FROM blocks WHERE type = 'd' ORDER BY created DESC`;
+            const allDocs = await this.sqlQuery(sql);
+            console.log("[DEBUG] queryAllGalleryFilesByAPI - total documents:", allDocs.length);
+
+            if (allDocs.length === 0) {
+                showMessage("未找到任何文档");
+                return [];
+            }
+
+            const galleryFiles: IGalleryFile[] = [];
+            let scannedCount = 0;
+
+            // 遍历所有文档，使用 getDocInfo API 检查标签
+            for (const doc of allDocs) {
+                scannedCount++;
+
+                // 每扫描 10 个文档显示一次进度
+                if (scannedCount % 10 === 0) {
+                    showMessage(`正在扫描... ${scannedCount}/${allDocs.length}`);
+                }
+
+                try {
+                    const response = await fetchSyncPost("/api/block/getDocInfo", { id: doc.id });
+
+                    if (response.code === 0 && response.data) {
+                        const docInfo = response.data;
+
+                        // 宽松检测：只要返回结果中包含 "gallery" 就认为是画廊文档
+                        const jsonStr = JSON.stringify(docInfo).toLowerCase();
+                        if (jsonStr.includes("gallery")) {
+                            console.log("[DEBUG] queryAllGalleryFilesByAPI - found gallery doc:", doc.id, doc.content);
+
+                            // 查询该文档的图片数量
+                            const imageCountSql = `
+                                SELECT COUNT(*) as count
+                                FROM spans
+                                WHERE root_id = '${doc.id}' AND type = 'img'
+                            `;
+                            const countResult = await this.sqlQuery(imageCountSql);
+                            const imageCount = countResult[0]?.count || 0;
+
+                            galleryFiles.push({
+                                id: doc.id,
+                                name: doc.content || "未命名文档",
+                                created: doc.created,
+                                updated: doc.updated,
+                                imageCount: imageCount,
+                            });
+                        }
+                    }
+                } catch (apiError) {
+                    console.error("[DEBUG] queryAllGalleryFilesByAPI - error checking doc:", doc.id, apiError);
+                    // 继续处理下一个文档
+                }
+            }
+
+            console.log("[DEBUG] queryAllGalleryFilesByAPI - scan complete, found:", galleryFiles.length);
+            showMessage(`扫描完成，找到 ${galleryFiles.length} 个画廊文档`);
+            return galleryFiles;
+        } catch (error) {
+            console.error("[DEBUG] queryAllGalleryFilesByAPI error:", error);
+            showMessage("API 扫描失败");
             return [];
         }
     }
