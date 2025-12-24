@@ -411,6 +411,7 @@
   grid-auto-rows: max-content;  // 使用max-content而不是auto
   gap: 24px;
   align-content: start;
+  scrollbar-gutter: stable;  // 为滚动条预留空间，避免遮挡右侧padding
 }
 
 .image-management-item {

@@ -11,7 +11,8 @@ const STORAGE_NAME = "gallery-settings";
 
 interface IGallerySettings {
     imageOrder: "random" | "sequential" | "reverse";
-    imageWidth: number; // 图片宽度（像素）
+    imageWidthDesktop: number; // 桌面端图片宽度（像素）
+    imageWidthMobile: number; // 移动端图片宽度（像素）
 }
 
 interface IGalleryFile {
@@ -31,6 +32,7 @@ interface IImageInfo {
 }
 
 type SortOrder = "date-desc" | "date-asc" | "reference-order";
+type ImageSortOrder = "block-order" | "path-asc" | "path-desc";
 
 /**
  * 瀑布流画廊插件
@@ -43,6 +45,7 @@ export default class ImageWaterfallGallery extends Plugin {
     private galleryManagementOverlay: HTMLElement | null = null;
     private settings: IGallerySettings;
     private currentSortOrder: SortOrder = "date-desc";
+    private currentImageSortOrder: ImageSortOrder = "block-order";
 
     async onload() {
         console.log("Loading Image Waterfall Gallery Plugin");
@@ -68,21 +71,25 @@ export default class ImageWaterfallGallery extends Plugin {
      * 加载设置
      */
     private async loadSettings() {
-        // 检测平台
-        const frontend = getFrontend();
-        const isMobile = frontend === "mobile" || frontend === "browser-mobile";
-
-        // 根据平台设置默认图片宽度
-        const defaultWidth = isMobile ? 300 : 350;
-
         // 加载保存的设置或使用默认值
         const savedSettings = await this.loadData(STORAGE_NAME);
+
+        // 设置默认值
+        const defaultDesktopWidth = 350;
+        const defaultMobileWidth = 300;
+
         this.settings = {
             imageOrder: savedSettings?.imageOrder || "random",
-            imageWidth: savedSettings?.imageWidth || defaultWidth,
+            imageWidthDesktop: savedSettings?.imageWidthDesktop || defaultDesktopWidth,
+            imageWidthMobile: savedSettings?.imageWidthMobile || defaultMobileWidth,
         };
 
-        console.log("[DEBUG] Settings loaded:", this.settings, "Platform:", frontend);
+        // 检测平台并记录日志
+        const frontend = getFrontend();
+        const isMobile = frontend === "mobile" || frontend === "browser-mobile";
+        const currentWidth = isMobile ? this.settings.imageWidthMobile : this.settings.imageWidthDesktop;
+
+        console.log("[DEBUG] Settings loaded:", this.settings, "Platform:", frontend, "Current width:", currentWidth);
     }
 
     /**
@@ -97,13 +104,21 @@ export default class ImageWaterfallGallery extends Plugin {
             <option value="reverse" ${this.settings.imageOrder === "reverse" ? "selected" : ""}>倒序</option>
         `;
 
-        const imageWidthInput = document.createElement("input");
-        imageWidthInput.className = "b3-text-field fn__flex-center";
-        imageWidthInput.type = "number";
-        imageWidthInput.min = "200";
-        imageWidthInput.max = "600";
-        imageWidthInput.step = "50";
-        imageWidthInput.value = this.settings.imageWidth.toString();
+        const imageWidthDesktopInput = document.createElement("input");
+        imageWidthDesktopInput.className = "b3-text-field fn__flex-center";
+        imageWidthDesktopInput.type = "number";
+        imageWidthDesktopInput.min = "200";
+        imageWidthDesktopInput.max = "600";
+        imageWidthDesktopInput.step = "50";
+        imageWidthDesktopInput.value = this.settings.imageWidthDesktop.toString();
+
+        const imageWidthMobileInput = document.createElement("input");
+        imageWidthMobileInput.className = "b3-text-field fn__flex-center";
+        imageWidthMobileInput.type = "number";
+        imageWidthMobileInput.min = "200";
+        imageWidthMobileInput.max = "600";
+        imageWidthMobileInput.step = "50";
+        imageWidthMobileInput.value = this.settings.imageWidthMobile.toString();
 
         const galleryManagementBtn = document.createElement("button");
         galleryManagementBtn.className = "b3-button b3-button--outline";
@@ -115,7 +130,8 @@ export default class ImageWaterfallGallery extends Plugin {
         this.setting = new Setting({
             confirmCallback: () => {
                 this.settings.imageOrder = imageOrderSelect.value as "random" | "sequential" | "reverse";
-                this.settings.imageWidth = parseInt(imageWidthInput.value);
+                this.settings.imageWidthDesktop = parseInt(imageWidthDesktopInput.value);
+                this.settings.imageWidthMobile = parseInt(imageWidthMobileInput.value);
                 this.saveData(STORAGE_NAME, this.settings);
                 showMessage("设置已保存");
             }
@@ -128,9 +144,15 @@ export default class ImageWaterfallGallery extends Plugin {
         });
 
         this.setting.addItem({
-            title: "图片宽度（像素）",
-            description: "设置瀑布流中图片的宽度，范围 200-600",
-            actionElement: imageWidthInput,
+            title: "桌面端图片宽度（像素）",
+            description: "设置桌面端瀑布流中图片的宽度，范围 200-600",
+            actionElement: imageWidthDesktopInput,
+        });
+
+        this.setting.addItem({
+            title: "移动端图片宽度（像素）",
+            description: "设置移动端瀑布流中图片的宽度，范围 200-600",
+            actionElement: imageWidthMobileInput,
         });
 
         this.setting.addItem({
@@ -341,9 +363,12 @@ export default class ImageWaterfallGallery extends Plugin {
         // 创建瀑布流容器
         const container = document.createElement("div");
         container.className = "waterfall-container";
-        // 应用图片宽度设置
-        container.style.setProperty("--gallery-image-width", `${this.settings.imageWidth}px`);
-        console.log("[DEBUG] Created waterfall container with width:", this.settings.imageWidth);
+        // 检测平台并应用对应的图片宽度设置
+        const frontend = getFrontend();
+        const isMobile = frontend === "mobile" || frontend === "browser-mobile";
+        const currentWidth = isMobile ? this.settings.imageWidthMobile : this.settings.imageWidthDesktop;
+        container.style.setProperty("--gallery-image-width", `${currentWidth}px`);
+        console.log("[DEBUG] Created waterfall container with width:", currentWidth, "Platform:", frontend);
 
         // 添加图片（使用排序后的图片列表）
         for (const imageSrc of orderedImages) {
@@ -730,6 +755,34 @@ export default class ImageWaterfallGallery extends Plugin {
     }
 
     /**
+     * 对画廊内的图片进行排序
+     */
+    private sortGalleryImages(images: IImageInfo[], sortOrder: ImageSortOrder): IImageInfo[] {
+        const sorted = [...images];
+
+        switch (sortOrder) {
+            case "block-order":
+                // 按块ID顺序（保持查询顺序）
+                // 保持原顺序，因为查询时已经按 block_id 排序
+                break;
+            case "path-asc":
+                // 按路径正序
+                sorted.sort((a, b) => {
+                    return a.src.localeCompare(b.src);
+                });
+                break;
+            case "path-desc":
+                // 按路径倒序
+                sorted.sort((a, b) => {
+                    return b.src.localeCompare(a.src);
+                });
+                break;
+        }
+
+        return sorted;
+    }
+
+    /**
      * 显示画廊管理界面
      */
     private async showGalleryManagement() {
@@ -956,9 +1009,29 @@ export default class ImageWaterfallGallery extends Plugin {
         infoText.textContent = `共 ${imageInfos.length} 张图片`;
         infoBar.appendChild(infoText);
 
+        // 添加图片排序选择器
+        const sortLabel = document.createElement("span");
+        sortLabel.textContent = "排序：";
+        sortLabel.style.marginLeft = "20px";
+        infoBar.appendChild(sortLabel);
+
+        const sortSelect = document.createElement("select");
+        sortSelect.className = "b3-select";
+        sortSelect.innerHTML = `
+            <option value="block-order" ${this.currentImageSortOrder === "block-order" ? "selected" : ""}>块顺序</option>
+            <option value="path-asc" ${this.currentImageSortOrder === "path-asc" ? "selected" : ""}>路径（正序）</option>
+            <option value="path-desc" ${this.currentImageSortOrder === "path-desc" ? "selected" : ""}>路径（倒序）</option>
+        `;
+        sortSelect.onchange = () => {
+            this.currentImageSortOrder = sortSelect.value as ImageSortOrder;
+            this.showSingleGalleryManagement(file); // 重新渲染
+        };
+        infoBar.appendChild(sortSelect);
+
         const addImageBtn = document.createElement("button");
         addImageBtn.className = "b3-button b3-button--outline";
         addImageBtn.textContent = "+ 添加图片";
+        addImageBtn.style.marginLeft = "auto";
         addImageBtn.onclick = () => {
             this.showAddImageDialog(file);
         };
@@ -966,12 +1039,15 @@ export default class ImageWaterfallGallery extends Plugin {
 
         overlay.appendChild(infoBar);
 
+        // 对图片进行排序
+        const sortedImages = this.sortGalleryImages(imageInfos, this.currentImageSortOrder);
+
         // 创建图片网格容器
         const gridContainer = document.createElement("div");
         gridContainer.className = "single-gallery-grid";
 
-        // 渲染图片列表
-        for (const imageInfo of imageInfos) {
+        // 渲染图片列表（使用排序后的图片）
+        for (const imageInfo of sortedImages) {
             const imageItem = this.createImageManagementItem(imageInfo, file);
             gridContainer.appendChild(imageItem);
         }
@@ -1053,8 +1129,28 @@ export default class ImageWaterfallGallery extends Plugin {
         deleteBtn.className = "b3-button b3-button--error";
         deleteBtn.textContent = "删除";
         deleteBtn.onclick = async () => {
-            if (confirm("确定要删除这张图片的引用吗？")) {
-                await this.deleteImageReference(imageInfo, file);
+            // 第一次确认：详细说明删除操作
+            const firstConfirm = confirm(
+                `⚠️ 警告：删除图片引用\n\n` +
+                `即将删除以下图片的引用：\n${imageInfo.src}\n\n` +
+                `注意：\n` +
+                `• 此操作将从文档中删除该图片的 Markdown 引用\n` +
+                `• 附件文件本身不会被删除，仍保留在 assets 目录中\n` +
+                `• 如果该块只包含此图片，整个块将被删除\n\n` +
+                `是否继续？`
+            );
+
+            if (firstConfirm) {
+                // 第二次确认：最终确认
+                const secondConfirm = confirm(
+                    `⚠️ 最终确认\n\n` +
+                    `确定要删除这张图片的引用吗？\n` +
+                    `此操作不可撤销！`
+                );
+
+                if (secondConfirm) {
+                    await this.deleteImageReference(imageInfo, file);
+                }
             }
         };
 
@@ -1071,12 +1167,66 @@ export default class ImageWaterfallGallery extends Plugin {
      * 显示添加图片对话框
      */
     private showAddImageDialog(file: IGalleryFile) {
-        const imagePath = prompt("请输入图片路径或URL：");
-        if (!imagePath || imagePath.trim() === "") {
-            return;
-        }
+        // 创建文件选择器
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = "image/*";
+        fileInput.style.display = "none";
 
-        this.addImageToGallery(file, imagePath.trim());
+        fileInput.onchange = async (e: Event) => {
+            const target = e.target as HTMLInputElement;
+            const selectedFile = target.files?.[0];
+
+            if (!selectedFile) {
+                return;
+            }
+
+            // 上传文件到附件
+            await this.uploadAndAddImage(file, selectedFile);
+
+            // 清理
+            document.body.removeChild(fileInput);
+        };
+
+        // 添加到页面并触发点击
+        document.body.appendChild(fileInput);
+        fileInput.click();
+    }
+
+    /**
+     * 上传文件并添加到画廊
+     */
+    private async uploadAndAddImage(file: IGalleryFile, imageFile: File) {
+        try {
+            showMessage("正在上传图片...");
+
+            // 创建 FormData
+            const formData = new FormData();
+            formData.append("assetsDirPath", `/data/assets/`);
+            formData.append("file[]", imageFile);
+
+            // 上传文件
+            const response = await fetch("/api/asset/upload", {
+                method: "POST",
+                body: formData,
+            });
+
+            const result = await response.json();
+
+            if (result.code === 0 && result.data.succMap) {
+                // 获取上传后的文件路径
+                const uploadedPath = Object.values(result.data.succMap)[0] as string;
+                console.log("[DEBUG] File uploaded successfully:", uploadedPath);
+
+                // 添加图片到画廊
+                await this.addImageToGallery(file, uploadedPath);
+            } else {
+                showMessage(`上传失败: ${result.msg || "未知错误"}`);
+            }
+        } catch (error) {
+            console.error("[DEBUG] Error uploading image:", error);
+            showMessage("上传图片失败");
+        }
     }
 
     /**
