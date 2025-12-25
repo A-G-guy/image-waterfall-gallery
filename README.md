@@ -1,50 +1,50 @@
 # SiYuan Note - Image Waterfall Gallery Plugin
 
-English | [简体中文](README_zh_CN.md)
+English | [简体中文](https://github.com/A-G-guy/image-waterfall-gallery/blob/main/README_zh_CN.md)
 
 ## 📖 Introduction
 
-The Image Waterfall Gallery plugin provides an immersive image viewing experience for SiYuan Note. When you open a document with the `#gallery` tag, the plugin automatically extracts all images from the document and displays them in a beautiful waterfall layout in fullscreen mode, allowing you to focus on enjoying the images without text distractions.
+The Image Waterfall Gallery plugin provides an immersive image viewing experience for SiYuan Note. When you open a document with the `#gallery` tag, the plugin automatically extracts all images in the document and displays them fullscreen in a waterfall layout, so you can focus on images without text distractions.
 
 ## ✨ Features
 
 ### Gallery Viewing
 
 - 🎯 **Auto Trigger**: Automatically enters gallery mode when opening documents with `#gallery` tag
-- 🖼️ **Waterfall Layout**: Uses equal-width, variable-height waterfall layout to maximize screen space
-- 🔍 **Lightbox View**: Click images to view in lightbox with navigation support
-- 🎨 **Theme Adaptation**: Automatically adapts to SiYuan's dark/light themes
+- 🏞️ **Waterfall Layout**: Equal-width, variable-height waterfall layout to maximize screen space
+- 🔍 **Lightbox View**: Click images to view in a lightbox with left/right navigation
+- 🌙 **Theme Adaptation**: Automatically adapts to SiYuan's dark/light themes
 - 📱 **Responsive Design**: Supports desktop and mobile with automatic column adjustment
-- ⚡ **Performance Optimization**: Lazy loading for improved loading speed
-- 🎭 **Elegant Animations**: Fade-in animation effects for smooth visual experience
-- ⌨️ **Quick Actions**: Press ESC to quickly exit gallery mode
+- ⚡ **Performance Optimization**: Lazy loading to improve loading speed
+- 🎬 **Elegant Animations**: Fade-in animation for a smooth visual experience
+- ⌨️ **Quick Actions**: Press `ESC` to quickly exit gallery mode
 
 ### Gallery Management
 
 - 📂 **File Management**: View and manage all documents with `#gallery` tag
 - 🔄 **File Sorting**: Sort by creation date (ascending/descending) or reference order
-- 🖼️ **Image Management**: View all image details in a single gallery file
-- ➕ **Add Images**: Upload images to attachments via file selector and auto-insert into document
-- 🗑️ **Delete References**: Delete image references (keep attachment files) with double confirmation protection
-- 📊 **Image Sorting**: Sort images by block order, path ascending/descending
+- 🖼️ **Image Management**: View image details of a single gallery document
+- ➕ **Add Images**: Upload images via file picker and auto-insert into the document
+- 🗑️ **Delete References**: Delete image references (keep attachment files) with double confirmation
+- 📋 **Image Sorting**: Sort images by block order or path (ascending/descending)
 
 ### Plugin Settings
 
-- 🎲 **Image Order**: Set display order of images in waterfall (random/sequential/reverse)
-- 💻 **Desktop Width**: Customize waterfall image width for desktop (200-600px)
-- 📱 **Mobile Width**: Customize waterfall image width for mobile (200-600px)
-- 🌐 **Cross-platform Adaptation**: Auto-detect platform and apply corresponding width settings
+- 🎲 **Image Order**: Random / sequential / reverse
+- 💻 **Desktop Width**: Customize desktop waterfall image width (200–600px)
+- 📱 **Mobile Width**: Customize mobile waterfall image width (200–600px)
+- 🔧 **Cross-platform Adaptation**: Auto-detect platform and apply corresponding width settings
 
 ## 📦 Installation
 
-### Method 1: Marketplace Installation (Recommended)
+### Method 1: Marketplace (Recommended)
 
 1. Open SiYuan Note
 2. Go to `Settings` → `Marketplace` → `Plugins`
 3. Search for "瀑布流画廊" or "Image Waterfall Gallery"
 4. Click `Download` and enable the plugin
 
-### Method 2: Manual Installation
+### Method 2: Manual
 
 1. Download the latest `package.zip`
 2. Extract to SiYuan's `data/plugins/` directory
@@ -56,45 +56,45 @@ The Image Waterfall Gallery plugin provides an immersive image viewing experienc
 ### Basic Usage
 
 1. Create or open a document containing images
-2. Add `#gallery` tag to the document
-   - Click the `...` menu on the right side of the document title
-   - Select `Properties` → `Tags`
-   - Enter `gallery` and save
-3. When switching to this document, the plugin will automatically enter gallery mode
+2. At the top of the editor, you will see: Add tags, Add icon, Add cover
+   - Click `Add tags`
+   - Type `gallery` in the input box
+   - Create a new tag or select the existing `gallery` tag
+3. When you switch to this document, the plugin will automatically enter gallery mode
 
 ### Exit Gallery Mode
 
-- Press `ESC` key
+- Press `ESC`
 - Click the close button `✕` in the top right corner
 
 ### Using Gallery Management
 
-1. Open plugin settings (Settings → Plugins → Image Waterfall Gallery)
-2. Click `Manage Gallery Files` button
+1. Open plugin settings (`Settings` → `Plugins` → `Image Waterfall Gallery`)
+2. Click `Manage gallery files`
 3. In the gallery file list:
-   - Use sort selector to adjust file display order
-   - Click `Manage` button to enter detailed management of a single gallery
-4. In single gallery management interface:
-   - Use sort selector to adjust image display order
-   - Click `+ Add Image` to upload new images to gallery
-   - Click images to view in lightbox
-   - Click `Delete` button to delete image references (requires double confirmation)
+   - Use the sort selector to adjust file order
+   - Click `Manage` to open a single gallery's detailed view
+4. In the single gallery management view:
+   - Use the sort selector to adjust image order
+   - Click `+ Add Image` to upload a new image into the gallery
+   - Click an image to view it in the lightbox
+   - Click `Delete` to delete an image reference (double confirmation required)
 
 ### Configure Plugin Settings
 
-1. Open plugin settings (Settings → Plugins → Image Waterfall Gallery)
-2. Configure the following options:
-   - **Image Order**: Select display order of images in waterfall
-   - **Desktop Image Width**: Set desktop image width (default 350px)
-   - **Mobile Image Width**: Set mobile image width (default 300px)
-3. Click confirm to save settings
+1. Open plugin settings (`Settings` → `Plugins` → `Image Waterfall Gallery`)
+2. Configure options:
+   - **Image Order**: Select display order in the waterfall
+   - **Desktop Image Width**: Default 350px
+   - **Mobile Image Width**: Default 300px
+3. Click Confirm to save settings
 
 ### Use Cases
 
 - 📸 **Photography Portfolio**: Showcase your photography work
 - 🎨 **Design Inspiration Library**: Collect and browse design inspiration
 - 🖼️ **Art Gallery**: Appreciate artworks
-- 📚 **Image Notes**: Browse image-intensive notes
+- 📚 **Image Notes**: Browse image-heavy notes
 
 ## ⚙️ Technical Architecture
 
@@ -113,8 +113,8 @@ image-waterfall-gallery/
 │   ├── index.ts          # Core logic
 │   └── index.scss        # Styles
 ├── plugin.json           # Plugin configuration
-├── icon.png             # Plugin icon
-└── README.md            # Documentation
+├── icon.png              # Plugin icon
+└── README.md             # Documentation
 ```
 
 ## 🔧 Development
@@ -142,32 +142,6 @@ npm run build
 - `dist/index.js` - Main program
 - `dist/index.css` - Styles
 - `package.zip` - Plugin package
-
-## 📝 Changelog
-
-### v1.0.2 (2025-12-24)
-
-- ✨ Added dynamic version number display in plugin settings
-- 🐛 Fixed mobile gallery tag recognition issue with enhanced retry mechanism
-- 🔧 Optimized event handling: desktop uses `switch-protyle`, mobile uses `loaded-protyle-static`
-- ⚡ Enhanced retry mechanism: 6 retries with 4200ms total delay for mobile
-- 🎯 Added manual gallery detection button with strongest safeguards (10 retries, 13000ms total delay)
-- 📱 Added 500ms initial delay for mobile to ensure database sync
-
-### v1.0.1 (2025-12-24)
-
-- 🐛 Fixed platform detection logic, support independent image width settings for desktop and mobile
-- 🐛 Fixed add image button, changed to file selector and upload to attachments
-- 🐛 Added strong warning for delete function, including two-step confirmation and detailed explanation
-- 🐛 Fixed image sorting logic, added image sorting function for single gallery management page
-
-### v1.0.0 (2025-12-23)
-
-- 🎉 Initial release
-- ✨ Implemented automatic waterfall gallery functionality
-- 🎨 Theme adaptation support
-- 📱 Responsive layout support
-- ⚡ Image lazy loading optimization
 
 ## 🤝 Contributing
 

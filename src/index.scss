@@ -54,7 +54,7 @@
   margin-left: 8px;
 
   &:hover {
-    background-color: var(--b3-theme-error-light);
+    background-color: var(--b3-theme-error);
     transform: scale(1.1);
   }
 
@@ -235,7 +235,7 @@
   z-index: 10001;
 
   &:hover {
-    background-color: rgba(255, 0, 0, 0.6);
+    background-color: var(--b3-theme-error);
     transform: scale(1.1);
   }
 

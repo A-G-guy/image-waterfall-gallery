@@ -2,7 +2,7 @@
   "name": "image-waterfall-gallery",
   "author": "A-G-guy",
   "url": "https://github.com/A-G-guy/image-waterfall-gallery",
-  "version": "1.0.9",
+  "version": "1.1.0",
   "minAppVersion": "3.5.1",
   "backends": ["all"],
   "frontends": ["all"],
@@ -19,17 +19,7 @@
     "default": "README.md",
     "zh_CN": "README_zh_CN.md"
   },
-  "funding": {
-    "openCollective": "",
-    "patreon": "",
-    "github": "",
-    "custom": [
-      "https://ld246.com/sponsor"
-    ]
-  },
   "keywords": [
-    "瀑布流",
-    "画廊",
     "图片展示"
   ]
 }

@@ -4,7 +4,6 @@ import {
     fetchSyncPost,
     Setting,
     getFrontend,
-    getBackend,
 } from "siyuan";
 import "./index.scss";
 import pluginJson from "../plugin.json";
@@ -51,9 +50,17 @@ export default class ImageWaterfallGallery extends Plugin {
     private lastProcessedRootId: string = ""; // 防抖：记录最后处理的文档 ID
     private lastProcessedTime: number = 0; // 防抖：记录最后处理的时间戳
     private galleryLoadedForRootId: string = ""; // 记录当前已加载画廊的文档 ID
+    private galleryEscapeHandler: ((e: KeyboardEvent) => void) | null = null;
+
+    private t(key: string, fallback: string, vars?: Record<string, string | number>): string {
+        const source = (this.i18n as Record<string, string | undefined>)?.[key] ?? fallback;
+        if (!vars) {
+            return source;
+        }
+        return source.replace(/\{(\w+)\}/g, (_, k) => vars[k]?.toString() ?? "");
+    }
 
     async onload() {
-        console.log("Loading Image Waterfall Gallery Plugin");
 
         // 初始化设置
         await this.loadSettings();
@@ -69,14 +76,12 @@ export default class ImageWaterfallGallery extends Plugin {
     }
 
     onunload() {
-        console.log("Unloading Image Waterfall Gallery Plugin");
         // 清理画廊覆盖层
         this.destroyGallery();
         this.destroyLightbox();
     }
 
     async uninstall() {
-        console.log("Uninstalling Image Waterfall Gallery Plugin");
         // 清理画廊覆盖层
         this.destroyGallery();
         this.destroyLightbox();
@@ -106,7 +111,6 @@ export default class ImageWaterfallGallery extends Plugin {
         const isMobile = frontend === "mobile" || frontend === "browser-mobile";
         const currentWidth = isMobile ? this.settings.imageWidthMobile : this.settings.imageWidthDesktop;
 
-        console.log("[DEBUG] Settings loaded:", this.settings, "Platform:", frontend, "Current width:", currentWidth);
     }
 
     /**
@@ -122,9 +126,9 @@ export default class ImageWaterfallGallery extends Plugin {
         const imageOrderSelect = document.createElement("select");
         imageOrderSelect.className = "b3-select fn__flex-center";
         imageOrderSelect.innerHTML = `
-            <option value="random" ${this.settings.imageOrder === "random" ? "selected" : ""}>随机顺序</option>
-            <option value="sequential" ${this.settings.imageOrder === "sequential" ? "selected" : ""}>顺序</option>
-            <option value="reverse" ${this.settings.imageOrder === "reverse" ? "selected" : ""}>倒序</option>
+            <option value="random" ${this.settings.imageOrder === "random" ? "selected" : ""}>${this.t("imageOrderRandom", "随机顺序")}</option>
+            <option value="sequential" ${this.settings.imageOrder === "sequential" ? "selected" : ""}>${this.t("imageOrderSequential", "顺序")}</option>
+            <option value="reverse" ${this.settings.imageOrder === "reverse" ? "selected" : ""}>${this.t("imageOrderReverse", "倒序")}</option>
         `;
 
         const imageWidthDesktopInput = document.createElement("input");
@@ -145,14 +149,14 @@ export default class ImageWaterfallGallery extends Plugin {
 
         const galleryManagementBtn = document.createElement("button");
         galleryManagementBtn.className = "b3-button b3-button--outline";
-        galleryManagementBtn.textContent = "管理画廊文件";
+        galleryManagementBtn.textContent = this.t("manageGalleryFiles", "管理画廊文件");
         galleryManagementBtn.onclick = () => {
             this.showGalleryManagement();
         };
 
         const manualDetectBtn = document.createElement("button");
         manualDetectBtn.className = "b3-button b3-button--outline";
-        manualDetectBtn.textContent = "手动检测画廊";
+        manualDetectBtn.textContent = this.t("manualDetectGallery", "手动检测画廊");
         manualDetectBtn.onclick = async () => {
             await this.manualDetectGallery();
         };
@@ -163,43 +167,43 @@ export default class ImageWaterfallGallery extends Plugin {
                 this.settings.imageWidthDesktop = parseInt(imageWidthDesktopInput.value);
                 this.settings.imageWidthMobile = parseInt(imageWidthMobileInput.value);
                 this.saveData(STORAGE_NAME, this.settings);
-                showMessage("设置已保存");
+                showMessage(this.t("settingsSaved", "设置已保存"));
             }
         });
 
         this.setting.addItem({
-            title: "插件版本",
-            description: "当前插件版本号",
+            title: this.t("settingsPluginVersion", "插件版本"),
+            description: this.t("settingsPluginVersionDesc", "当前插件版本号"),
             actionElement: versionDisplay,
         });
 
         this.setting.addItem({
-            title: "图片顺序",
-            description: "设置图片在瀑布流中的显示顺序",
+            title: this.t("settingsImageOrder", "图片顺序"),
+            description: this.t("settingsImageOrderDesc", "设置图片在瀑布流中的显示顺序"),
             actionElement: imageOrderSelect,
         });
 
         this.setting.addItem({
-            title: "桌面端图片宽度（像素）",
-            description: "设置桌面端瀑布流中图片的宽度，范围 200-600",
+            title: this.t("settingsDesktopWidth", "桌面端图片宽度（像素）"),
+            description: this.t("settingsDesktopWidthDesc", "设置桌面端瀑布流中图片的宽度，范围 200-600"),
             actionElement: imageWidthDesktopInput,
         });
 
         this.setting.addItem({
-            title: "移动端图片宽度（像素）",
-            description: "设置移动端瀑布流中图片的宽度，范围 200-600",
+            title: this.t("settingsMobileWidth", "移动端图片宽度（像素）"),
+            description: this.t("settingsMobileWidthDesc", "设置移动端瀑布流中图片的宽度，范围 200-600"),
             actionElement: imageWidthMobileInput,
         });
 
         this.setting.addItem({
-            title: "画廊文件管理",
-            description: "查看和管理所有画廊文件",
+            title: this.t("settingsGalleryManagement", "画廊文件管理"),
+            description: this.t("settingsGalleryManagementDesc", "查看和管理所有画廊文件"),
             actionElement: galleryManagementBtn,
         });
 
         this.setting.addItem({
-            title: "手动检测画廊",
-            description: "扫描所有文档并显示画廊列表（SQL + API 双重保障，宽松容错）",
+            title: this.t("settingsManualDetection", "手动检测画廊"),
+            description: this.t("settingsManualDetectionDesc", "扫描所有文档并显示画廊列表（SQL + API 双重保障，宽松容错）"),
             actionElement: manualDetectBtn,
         });
     }
@@ -208,38 +212,30 @@ export default class ImageWaterfallGallery extends Plugin {
      * 处理文档切换事件
      */
     private async handleDocumentSwitch(event: any) {
-        console.log("[DEBUG] handleDocumentSwitch called, event:", event);
 
         // 在移动端，只使用 loaded-protyle-static 事件，避免事件冲突
         const frontend = getFrontend();
         const isMobile = frontend === "mobile" || frontend === "browser-mobile";
         if (isMobile) {
-            console.log("[DEBUG] Mobile platform detected, skipping switch-protyle handler");
             return;
         }
 
         const detail = event.detail;
         if (!detail || !detail.protyle || !detail.protyle.block) {
-            console.log("[DEBUG] Event detail invalid, skipping");
             return;
         }
 
         const rootId = detail.protyle.block.rootID;
-        console.log("[DEBUG] Document switched, rootID:", rootId);
 
         // 防抖处理：如果快速切换文档，只处理最新的
         this.currentRootId = rootId;
 
         // 检查文档是否有 #gallery 标签
-        console.log("[DEBUG] Checking for #gallery tag...");
         const hasGalleryTag = await this.checkTags(rootId);
-        console.log("[DEBUG] Has gallery tag:", hasGalleryTag);
 
         if (hasGalleryTag) {
-            console.log("[DEBUG] Document has #gallery tag, loading gallery...");
             await this.loadGallery(rootId);
         } else {
-            console.log("[DEBUG] No #gallery tag, destroying gallery if exists");
             this.destroyGallery();
         }
     }
@@ -248,38 +244,31 @@ export default class ImageWaterfallGallery extends Plugin {
      * 处理文档加载完成事件（用于移动端更可靠的标签检测）
      */
     private async handleDocumentLoaded(event: any) {
-        console.log("[DEBUG] handleDocumentLoaded called, event:", event);
         const detail = event.detail;
         if (!detail || !detail.protyle || !detail.protyle.block) {
-            console.log("[DEBUG] Event detail invalid, skipping");
             return;
         }
 
         const rootId = detail.protyle.block.rootID;
-        console.log("[DEBUG] Document loaded, rootID:", rootId);
 
         // 只在移动端处理此事件，避免桌面端重复触发
         const frontend = getFrontend();
         const isMobile = frontend === "mobile" || frontend === "browser-mobile";
 
         if (!isMobile) {
-            console.log("[DEBUG] Not mobile platform, skipping loaded-protyle-static handler");
             return;
         }
 
-        console.log("[DEBUG] Mobile platform detected, checking for #gallery tag after load...");
 
         // 检查是否切换到了不同的文档
         const isDocumentChanged = rootId !== this.lastProcessedRootId;
 
         // 移动端最高权限：如果画廊已经加载，永不自动关闭，只能用户手动关闭
         if (this.galleryLoadedForRootId) {
-            console.log("[DEBUG] Mobile: Gallery already loaded, NEVER auto-close (highest priority)");
             return;
         }
 
         if (isDocumentChanged) {
-            console.log("[DEBUG] Document changed, processing new document:", rootId);
             // 文档切换了，更新记录
             this.lastProcessedRootId = rootId;
             this.lastProcessedTime = Date.now();
@@ -290,26 +279,20 @@ export default class ImageWaterfallGallery extends Plugin {
             const timeSinceLastProcess = now - this.lastProcessedTime;
 
             if (timeSinceLastProcess < 10000) {
-                console.log(`[DEBUG] Debounce: Same document processed ${timeSinceLastProcess}ms ago, skipping`);
                 return;
             }
-            console.log("[DEBUG] Same document, but enough time passed, re-checking...");
             this.lastProcessedTime = now;
         }
 
         // 在移动端添加初始延迟，给数据库更多时间同步标签数据
-        console.log("[DEBUG] Waiting 500ms for database sync...");
         await new Promise(resolve => setTimeout(resolve, 500));
 
         // 检查文档是否有 #gallery 标签
         const hasGalleryTag = await this.checkTags(rootId);
-        console.log("[DEBUG] Has gallery tag (after load):", hasGalleryTag);
 
         if (hasGalleryTag) {
-            console.log("[DEBUG] Document has #gallery tag, loading gallery...");
             await this.loadGallery(rootId);
         } else {
-            console.log("[DEBUG] No #gallery tag, but mobile never auto-closes gallery");
         }
     }
 
@@ -317,17 +300,15 @@ export default class ImageWaterfallGallery extends Plugin {
      * 手动检测画廊（扫描所有文档并显示画廊列表）
      */
     private async manualDetectGallery() {
-        console.log("[DEBUG] manualDetectGallery called - scanning all documents");
 
         try {
             // 显示开始检测的消息
-            showMessage("开始扫描所有文档...");
+            showMessage(this.t("messageScanStart", "开始扫描所有文档..."));
 
             // 调用画廊管理界面，会自动使用增强版的查询方法（SQL + API 双重保障）
             await this.showGalleryManagement();
         } catch (error) {
-            console.error("[DEBUG] Error in manual detect:", error);
-            showMessage("✗ 检测失败：" + error.message);
+            showMessage(this.t("messageScanFailedPrefix", "✗ 检测失败：") + (error as Error).message);
         }
     }
 
@@ -341,7 +322,6 @@ export default class ImageWaterfallGallery extends Plugin {
         // 确保即使最慢的设备也能成功加载
         const delays = [200, 400, 600, 800, 1000, 1200];
         const delay = delays[retryCount] || 1200;
-        console.log(`[DEBUG] Retry ${retryCount + 1}/6, using ${delay}ms delay (enhanced fault tolerance)`);
         return delay;
     }
 
@@ -355,7 +335,6 @@ export default class ImageWaterfallGallery extends Plugin {
         // 最强保障机制，确保在任何情况下都能成功
         const delays = [300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900, 2100];
         const delay = delays[retryCount] || 2100;
-        console.log(`[DEBUG] Max retry ${retryCount + 1}/10, using ${delay}ms delay (strongest safeguard)`);
         return delay;
     }
 
@@ -365,68 +344,51 @@ export default class ImageWaterfallGallery extends Plugin {
      * @param retryCount 重试次数
      */
     private async checkTagsWithMaxRetry(rootId: string, retryCount: number = 0): Promise<boolean> {
-        console.log("[DEBUG] ========== checkTagsWithMaxRetry START ==========");
-        console.log("[DEBUG] rootId:", rootId);
-        console.log("[DEBUG] retryCount:", retryCount);
 
         let hasGallery = false;
 
         // 方法1: 优先使用 SQL 查询
         try {
             const sql = `SELECT id, type, tag, content FROM blocks WHERE id = '${rootId}'`;
-            console.log("[DEBUG] [MaxRetry] SQL query:", sql);
 
             const result = await this.sqlQuery(sql);
-            console.log("[DEBUG] [MaxRetry] SQL result:", JSON.stringify(result, null, 2));
 
             if (result && result.length > 0) {
                 const block = result[0];
                 const tags = block.tag || "";
                 hasGallery = tags.includes("#gallery#") || tags.includes("gallery");
-                console.log("[DEBUG] [MaxRetry] SQL method - Contains 'gallery':", hasGallery);
             } else {
-                console.log("[DEBUG] [MaxRetry] SQL query returned no results");
             }
         } catch (sqlError) {
-            console.error("[DEBUG] [MaxRetry] SQL query error:", sqlError);
         }
 
         // 方法2: 如果 SQL 未找到标签，尝试使用 getDocInfo API 作为兜底
         if (!hasGallery) {
-            console.log("[DEBUG] [MaxRetry] Trying getDocInfo API as fallback...");
             try {
                 const response = await fetchSyncPost("/api/block/getDocInfo", { id: rootId });
-                console.log("[DEBUG] [MaxRetry] getDocInfo API response:", JSON.stringify(response, null, 2));
 
                 if (response.code === 0 && response.data) {
                     const docInfo = response.data;
-                    console.log("[DEBUG] [MaxRetry] getDocInfo data keys:", Object.keys(docInfo));
 
                     // ial 是一个对象，直接访问 ial.tags
                     if (docInfo.ial && docInfo.ial.tags) {
                         const tags = docInfo.ial.tags;
-                        console.log("[DEBUG] [MaxRetry] Tags from ial.tags:", tags);
                         hasGallery = tags.includes("gallery");
                     }
 
-                    console.log("[DEBUG] [MaxRetry] API method - Contains 'gallery':", hasGallery);
                 }
             } catch (apiError) {
-                console.error("[DEBUG] [MaxRetry] getDocInfo API error:", apiError);
             }
         }
 
-        console.log("[DEBUG] [MaxRetry] Final result - hasGallery:", hasGallery);
 
         // 如果没有找到标签且重试次数小于10次，则重试
         if (!hasGallery && retryCount < 10) {
             const delay = this.getMaxRetryDelay(retryCount);
-            console.log(`[DEBUG] [MaxRetry] Retrying after ${delay}ms delay...`);
             await new Promise(resolve => setTimeout(resolve, delay));
             return this.checkTagsWithMaxRetry(rootId, retryCount + 1);
         }
 
-        console.log("[DEBUG] ========== checkTagsWithMaxRetry END ==========");
         return hasGallery;
     }
 
@@ -436,73 +398,46 @@ export default class ImageWaterfallGallery extends Plugin {
      * @param retryCount 重试次数（用于移动端延迟加载）
      */
     private async checkTags(rootId: string, retryCount: number = 0): Promise<boolean> {
-        console.log("[DEBUG] ========== checkTags START ==========");
-        console.log("[DEBUG] rootId:", rootId);
-        console.log("[DEBUG] retryCount:", retryCount);
-        console.log("[DEBUG] Platform:", getFrontend());
 
         let hasGallery = false;
 
         // 方法1: 优先使用 SQL 查询（桌面端已验证可用）
         try {
             const sql = `SELECT id, type, tag, content FROM blocks WHERE id = '${rootId}'`;
-            console.log("[DEBUG] SQL query:", sql);
 
             const result = await this.sqlQuery(sql);
-            console.log("[DEBUG] SQL result:", JSON.stringify(result, null, 2));
 
             if (result && result.length > 0) {
                 const block = result[0];
-                console.log("[DEBUG] Block found via SQL:");
-                console.log("[DEBUG]   - id:", block.id);
-                console.log("[DEBUG]   - type:", block.type);
-                console.log("[DEBUG]   - tag:", block.tag);
-                console.log("[DEBUG]   - content:", block.content);
 
                 const tags = block.tag || "";
-                console.log("[DEBUG] Tags string:", tags);
-                console.log("[DEBUG] Tags type:", typeof tags);
-                console.log("[DEBUG] Tags length:", tags.length);
 
                 hasGallery = tags.includes("#gallery#") || tags.includes("gallery");
-                console.log("[DEBUG] SQL method - Contains 'gallery':", hasGallery);
             } else {
-                console.log("[DEBUG] SQL query returned no results");
             }
         } catch (sqlError) {
-            console.error("[DEBUG] SQL query error:", sqlError);
         }
 
         // 方法2: 如果 SQL 未找到标签，尝试使用 getDocInfo API 作为兜底
         if (!hasGallery) {
-            console.log("[DEBUG] Trying getDocInfo API as fallback...");
             try {
                 const response = await fetchSyncPost("/api/block/getDocInfo", { id: rootId });
-                console.log("[DEBUG] getDocInfo API response:", JSON.stringify(response, null, 2));
 
                 if (response.code === 0 && response.data) {
                     const docInfo = response.data;
-                    console.log("[DEBUG] getDocInfo data keys:", Object.keys(docInfo));
-                    console.log("[DEBUG] Full docInfo:", JSON.stringify(docInfo, null, 2));
 
                     // ial 是一个对象，直接访问 ial.tags
                     if (docInfo.ial && docInfo.ial.tags) {
                         const tags = docInfo.ial.tags;
-                        console.log("[DEBUG] Tags from ial.tags:", tags);
-                        console.log("[DEBUG] Tags type:", typeof tags);
                         hasGallery = tags.includes("gallery");
                     }
 
-                    console.log("[DEBUG] API method - Contains 'gallery':", hasGallery);
                 } else {
-                    console.log("[DEBUG] getDocInfo API failed, code:", response.code, "msg:", response.msg);
                 }
             } catch (apiError) {
-                console.error("[DEBUG] getDocInfo API error:", apiError);
             }
         }
 
-        console.log("[DEBUG] Final result - hasGallery:", hasGallery);
 
         // 如果没有找到标签且重试次数小于6次，则在移动端重试
         if (!hasGallery && retryCount < 6) {
@@ -510,13 +445,11 @@ export default class ImageWaterfallGallery extends Plugin {
             const isMobile = frontend === "mobile" || frontend === "browser-mobile";
             if (isMobile) {
                 const delay = this.getMobileRetryDelay(retryCount);
-                console.log(`[DEBUG] Mobile platform, retrying after ${delay}ms delay...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return this.checkTags(rootId, retryCount + 1);
             }
         }
 
-        console.log("[DEBUG] ========== checkTags END ==========");
         return hasGallery;
     }
 
@@ -524,20 +457,15 @@ export default class ImageWaterfallGallery extends Plugin {
      * 执行 SQL 查询
      */
     private async sqlQuery(sql: string): Promise<any[]> {
-        console.log("[DEBUG] sqlQuery executing:", sql);
         try {
             const response = await fetchSyncPost("/api/query/sql", { stmt: sql });
-            console.log("[DEBUG] sqlQuery response:", response);
 
             if (response.code === 0) {
-                console.log("[DEBUG] sqlQuery success, data length:", response.data?.length || 0);
                 return response.data || [];
             } else {
-                console.error("[DEBUG] SQL query failed, code:", response.code, "msg:", response.msg);
                 return [];
             }
         } catch (error) {
-            console.error("[DEBUG] SQL query error:", error);
             return [];
         }
     }
@@ -550,18 +478,16 @@ export default class ImageWaterfallGallery extends Plugin {
         const images = await this.extractImages(rootId);
 
         if (images.length === 0) {
-            showMessage("当前文档无图片");
+            showMessage(this.t("messageNoImages", "当前文档无图片"));
             return;
         }
 
-        console.log(`Found ${images.length} images, rendering gallery...`);
 
         // 渲染画廊
         this.renderGallery(images);
 
         // 记录当前已加载画廊的文档 ID
         this.galleryLoadedForRootId = rootId;
-        console.log("[DEBUG] Gallery loaded successfully for document:", rootId);
     }
 
     /**
@@ -594,18 +520,15 @@ export default class ImageWaterfallGallery extends Plugin {
      * 提取文档中的所有图片
      */
     private async extractImages(rootId: string): Promise<string[]> {
-        console.log("[DEBUG] extractImages - rootId:", rootId);
 
         // 方法1: 优先使用 exportMdContent API（更可靠，不依赖数据库索引）
         try {
-            console.log("[DEBUG] Trying exportMdContent API...");
             const response = await fetchSyncPost("/api/export/exportMdContent", {
                 id: rootId,
             });
 
             if (response.code === 0 && response.data && response.data.content) {
                 const content = response.data.content;
-                console.log("[DEBUG] exportMdContent success, content length:", content.length);
 
                 const images: string[] = [];
                 const regex = /!\[.*?\]\((.*?)(?:\s+".*?")?\)/g;
@@ -617,21 +540,16 @@ export default class ImageWaterfallGallery extends Plugin {
                     }
                 }
 
-                console.log("[DEBUG] exportMdContent extracted", images.length, "images");
                 return images;
             }
         } catch (error) {
-            console.error("[DEBUG] exportMdContent API error:", error);
         }
 
         // 方法2: 如果 API 失败，使用 SQL 查询作为备用方案
-        console.log("[DEBUG] Falling back to SQL query...");
         const sql = `SELECT markdown FROM spans WHERE root_id = '${rootId}' AND type = 'img'`;
-        console.log("[DEBUG] SQL:", sql);
 
         try {
             const result = await this.sqlQuery(sql);
-            console.log("[DEBUG] SQL query result count:", result.length);
             const images: string[] = [];
             const regex = /!\[.*?\]\((.*?)(?:\s+".*?")?\)/;
 
@@ -643,10 +561,8 @@ export default class ImageWaterfallGallery extends Plugin {
                 }
             }
 
-            console.log("[DEBUG] SQL extracted", images.length, "images");
             return images;
         } catch (error) {
-            console.error("[DEBUG] SQL query error:", error);
             return [];
         }
     }
@@ -655,11 +571,9 @@ export default class ImageWaterfallGallery extends Plugin {
      * 渲染画廊
      */
     private renderGallery(images: string[]) {
-        console.log("[DEBUG] renderGallery called with", images.length, "images");
 
         // 根据设置对图片进行排序
         const orderedImages = this.orderImages(images);
-        console.log("[DEBUG] Images ordered with", this.settings.imageOrder, "order");
 
         // 如果已经有画廊，先销毁
         this.destroyGallery();
@@ -668,7 +582,6 @@ export default class ImageWaterfallGallery extends Plugin {
         const overlay = document.createElement("div");
         overlay.id = "gallery-overlay";
         overlay.className = "image-waterfall-gallery-overlay";
-        console.log("[DEBUG] Created overlay element");
 
         // 创建工具栏
         const toolbar = document.createElement("div");
@@ -685,7 +598,6 @@ export default class ImageWaterfallGallery extends Plugin {
 
         toolbar.appendChild(title);
         toolbar.appendChild(closeBtn);
-        console.log("[DEBUG] Created toolbar");
 
         // 创建瀑布流容器
         const container = document.createElement("div");
@@ -695,11 +607,9 @@ export default class ImageWaterfallGallery extends Plugin {
         const isMobile = frontend === "mobile" || frontend === "browser-mobile";
         const currentWidth = isMobile ? this.settings.imageWidthMobile : this.settings.imageWidthDesktop;
         container.style.setProperty("--gallery-image-width", `${currentWidth}px`);
-        console.log("[DEBUG] Created waterfall container with width:", currentWidth, "Platform:", frontend);
 
         // 添加图片（使用排序后的图片列表）
         for (const imageSrc of orderedImages) {
-            console.log("[DEBUG] Creating image item for:", imageSrc);
             const item = document.createElement("div");
             item.className = "waterfall-item";
 
@@ -707,10 +617,8 @@ export default class ImageWaterfallGallery extends Plugin {
             img.src = imageSrc;
             img.loading = "lazy";
             img.onload = () => {
-                console.log("[DEBUG] Image loaded successfully:", imageSrc);
             };
             img.onerror = () => {
-                console.error("[DEBUG] Image failed to load:", imageSrc);
                 item.style.display = "none";
             };
 
@@ -722,32 +630,31 @@ export default class ImageWaterfallGallery extends Plugin {
             item.appendChild(img);
             container.appendChild(item);
         }
-        console.log("[DEBUG] Added all images to container");
 
         overlay.appendChild(toolbar);
         overlay.appendChild(container);
 
         // 添加到页面
         document.body.appendChild(overlay);
+        overlay.setAttribute("tabindex", "-1");
+        overlay.focus();
         this.galleryOverlay = overlay;
-        console.log("[DEBUG] Appended overlay to document.body");
-        console.log("[DEBUG] Overlay element:", overlay);
-        console.log("[DEBUG] Overlay in DOM:", document.getElementById("gallery-overlay"));
 
         // 添加 ESC 键关闭功能
+        if (this.galleryEscapeHandler) {
+            document.removeEventListener("keydown", this.galleryEscapeHandler, true);
+        }
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
                 this.destroyGallery();
-                document.removeEventListener("keydown", handleEscape);
             }
         };
-        document.addEventListener("keydown", handleEscape);
+        this.galleryEscapeHandler = handleEscape;
+        document.addEventListener("keydown", handleEscape, true);
 
         // 添加淡入动画
         setTimeout(() => {
-            console.log("[DEBUG] Adding 'show' class to overlay");
             overlay.classList.add("show");
-            console.log("[DEBUG] Overlay classes:", overlay.className);
         }, 10);
     }
 
@@ -755,17 +662,18 @@ export default class ImageWaterfallGallery extends Plugin {
      * 销毁画廊
      */
     private destroyGallery() {
-        console.log("[DEBUG] destroyGallery called, overlay exists:", !!this.galleryOverlay);
 
         // 添加堆栈跟踪，查看是谁调用了 destroyGallery
-        console.log("[DEBUG] destroyGallery call stack:", new Error().stack);
+
+        if (this.galleryEscapeHandler) {
+            document.removeEventListener("keydown", this.galleryEscapeHandler, true);
+            this.galleryEscapeHandler = null;
+        }
 
         if (this.galleryOverlay) {
-            console.log("[DEBUG] Removing overlay from DOM");
             this.galleryOverlay.remove();
             this.galleryOverlay = null;
             this.galleryLoadedForRootId = ""; // 清除加载标志
-            console.log("[DEBUG] Gallery destroyed");
         }
     }
 
@@ -773,7 +681,6 @@ export default class ImageWaterfallGallery extends Plugin {
      * 显示灯箱
      */
     private showLightbox(imageSrc: string, allImages: string[]) {
-        console.log("[DEBUG] showLightbox called for:", imageSrc);
 
         // 如果已经有灯箱，先销毁
         this.destroyLightbox();
@@ -871,7 +778,6 @@ export default class ImageWaterfallGallery extends Plugin {
      * 销毁灯箱
      */
     private destroyLightbox() {
-        console.log("[DEBUG] destroyLightbox called");
         if (this.lightboxOverlay) {
             // 移除键盘事件监听
             const handler = (this.lightboxOverlay as any)._keyboardHandler;
@@ -888,18 +794,14 @@ export default class ImageWaterfallGallery extends Plugin {
      */
     private async queryAllGalleryFiles(): Promise<IGalleryFile[]> {
         // 先尝试 SQL 方法
-        console.log("[DEBUG] queryAllGalleryFiles - trying SQL method first...");
         const sqlResult = await this.queryAllGalleryFilesBySQL();
 
         if (sqlResult.length > 0) {
-            console.log("[DEBUG] queryAllGalleryFiles - SQL method succeeded, found", sqlResult.length, "files");
             return sqlResult;
         }
 
         // SQL 失败或返回空，使用 API 方法作为兜底
-        console.log("[DEBUG] queryAllGalleryFiles - SQL method failed or returned empty, trying API method...");
         const apiResult = await this.queryAllGalleryFilesByAPI();
-        console.log("[DEBUG] queryAllGalleryFiles - API method found", apiResult.length, "files");
         return apiResult;
     }
 
@@ -914,35 +816,29 @@ export default class ImageWaterfallGallery extends Plugin {
             WHERE type = 'd' AND (tag LIKE '%#gallery#%' OR tag LIKE '%gallery%')
             ORDER BY created DESC
         `;
-        console.log("[DEBUG] queryAllGalleryFilesBySQL SQL:", sql);
 
         try {
             const result = await this.sqlQuery(sql);
-            console.log("[DEBUG] queryAllGalleryFilesBySQL result count:", result.length);
 
             const galleryFiles: IGalleryFile[] = [];
 
             for (const row of result) {
-                console.log("[DEBUG] Processing gallery file - id:", row.id, "content:", row.content);
 
                 // 使用 extractImages 方法获取图片数量（更准确，不依赖数据库索引）
                 const images = await this.extractImages(row.id);
                 const imageCount = images.length;
-                console.log("[DEBUG] Gallery file", row.id, "has", imageCount, "images");
 
                 galleryFiles.push({
                     id: row.id,
-                    name: row.content || "未命名文档",
+                    name: row.content || this.t("untitledDocument", "未命名文档"),
                     created: row.created,
                     updated: row.updated,
                     imageCount: imageCount,
                 });
             }
 
-            console.log("[DEBUG] queryAllGalleryFilesBySQL - Total found:", galleryFiles.length);
             return galleryFiles;
         } catch (error) {
-            console.error("[DEBUG] queryAllGalleryFilesBySQL error:", error);
             return [];
         }
     }
@@ -951,17 +847,15 @@ export default class ImageWaterfallGallery extends Plugin {
      * 通过 API 遍历所有文档查询画廊文件（兜底方案）
      */
     private async queryAllGalleryFilesByAPI(): Promise<IGalleryFile[]> {
-        console.log("[DEBUG] queryAllGalleryFilesByAPI - starting API scan...");
-        showMessage("正在扫描所有文档...");
+        showMessage(this.t("messageScanningDocs", "正在扫描所有文档..."));
 
         try {
             // 查询所有文档 ID
             const sql = `SELECT id, content, created, updated FROM blocks WHERE type = 'd' ORDER BY created DESC`;
             const allDocs = await this.sqlQuery(sql);
-            console.log("[DEBUG] queryAllGalleryFilesByAPI - total documents:", allDocs.length);
 
             if (allDocs.length === 0) {
-                showMessage("未找到任何文档");
+                showMessage(this.t("messageNoDocsFound", "未找到任何文档"));
                 return [];
             }
 
@@ -974,7 +868,10 @@ export default class ImageWaterfallGallery extends Plugin {
 
                 // 每扫描 10 个文档显示一次进度
                 if (scannedCount % 10 === 0) {
-                    showMessage(`正在扫描... ${scannedCount}/${allDocs.length}`);
+                    showMessage(this.t("messageScanProgress", "正在扫描... {current}/{total}", {
+                        current: scannedCount,
+                        total: allDocs.length,
+                    }));
                 }
 
                 try {
@@ -986,16 +883,14 @@ export default class ImageWaterfallGallery extends Plugin {
                         // 宽松检测：只要返回结果中包含 "gallery" 就认为是画廊文档
                         const jsonStr = JSON.stringify(docInfo).toLowerCase();
                         if (jsonStr.includes("gallery")) {
-                            console.log("[DEBUG] queryAllGalleryFilesByAPI - found gallery doc:", doc.id, doc.content);
 
                             // 使用 extractImages 方法获取图片数量（更准确，不依赖数据库索引）
                             const images = await this.extractImages(doc.id);
                             const imageCount = images.length;
-                            console.log("[DEBUG] Gallery file", doc.id, "has", imageCount, "images");
 
                             galleryFiles.push({
                                 id: doc.id,
-                                name: doc.content || "未命名文档",
+                                name: doc.content || this.t("untitledDocument", "未命名文档"),
                                 created: doc.created,
                                 updated: doc.updated,
                                 imageCount: imageCount,
@@ -1003,17 +898,16 @@ export default class ImageWaterfallGallery extends Plugin {
                         }
                     }
                 } catch (apiError) {
-                    console.error("[DEBUG] queryAllGalleryFilesByAPI - error checking doc:", doc.id, apiError);
                     // 继续处理下一个文档
                 }
             }
 
-            console.log("[DEBUG] queryAllGalleryFilesByAPI - scan complete, found:", galleryFiles.length);
-            showMessage(`扫描完成，找到 ${galleryFiles.length} 个画廊文档`);
+            showMessage(this.t("messageScanComplete", "扫描完成，找到 {count} 个画廊文档", {
+                count: galleryFiles.length,
+            }));
             return galleryFiles;
         } catch (error) {
-            console.error("[DEBUG] queryAllGalleryFilesByAPI error:", error);
-            showMessage("API 扫描失败");
+            showMessage(this.t("messageAPIScanFailed", "API 扫描失败"));
             return [];
         }
     }
@@ -1022,12 +916,10 @@ export default class ImageWaterfallGallery extends Plugin {
      * 获取指定画廊文件的详细图片信息
      */
     private async getGalleryImageDetails(rootId: string): Promise<IImageInfo[]> {
-        console.log("[DEBUG] getGalleryImageDetails - rootId:", rootId);
 
         // 方法1: 先使用 exportMdContent API 获取所有图片（更可靠）
         let allImages: string[] = [];
         try {
-            console.log("[DEBUG] Trying exportMdContent API...");
             const response = await fetchSyncPost("/api/export/exportMdContent", {
                 id: rootId,
             });
@@ -1041,10 +933,8 @@ export default class ImageWaterfallGallery extends Plugin {
                         allImages.push(match[1]);
                     }
                 }
-                console.log("[DEBUG] exportMdContent found", allImages.length, "images");
             }
         } catch (error) {
-            console.error("[DEBUG] exportMdContent API error:", error);
         }
 
         // 方法2: 使用 SQL 查询获取详细信息（block_id, content 等）
@@ -1055,7 +945,6 @@ export default class ImageWaterfallGallery extends Plugin {
             WHERE s.root_id = '${rootId}' AND s.type = 'img'
             ORDER BY s.block_id
         `;
-        console.log("[DEBUG] getGalleryImageDetails SQL:", sql);
 
         const imageInfos: IImageInfo[] = [];
         const regex = /!\[.*?\]\((.*?)(?:\s+".*?")?\)/;
@@ -1063,7 +952,6 @@ export default class ImageWaterfallGallery extends Plugin {
 
         try {
             const result = await this.sqlQuery(sql);
-            console.log("[DEBUG] SQL result count:", result.length);
 
             for (const row of result) {
                 const markdown = row.markdown || "";
@@ -1081,13 +969,11 @@ export default class ImageWaterfallGallery extends Plugin {
                 }
             }
         } catch (error) {
-            console.error("[DEBUG] SQL query error:", error);
         }
 
         // 方法3: 补充 SQL 中缺失的图片（spans 表索引延迟导致的）
         for (const imageSrc of allImages) {
             if (!processedImages.has(imageSrc)) {
-                console.log("[DEBUG] Adding missing image from API:", imageSrc);
                 imageInfos.push({
                     id: `temp-${Date.now()}-${Math.random()}`,
                     markdown: `![](${imageSrc})`,
@@ -1098,7 +984,6 @@ export default class ImageWaterfallGallery extends Plugin {
             }
         }
 
-        console.log("[DEBUG] Total image details:", imageInfos.length);
         return imageInfos;
     }
 
@@ -1107,34 +992,28 @@ export default class ImageWaterfallGallery extends Plugin {
      * 思源笔记的图片路径格式为 assets/xxx，需要添加前缀 /
      */
     private normalizeImagePath(path: string): string {
-        console.log("[DEBUG] normalizeImagePath - input path:", path);
 
         if (!path) {
-            console.log("[DEBUG] normalizeImagePath - empty path");
             return "";
         }
 
         // 如果已经是完整的URL（http/https），直接返回
         if (path.startsWith("http://") || path.startsWith("https://")) {
-            console.log("[DEBUG] normalizeImagePath - already full URL");
             return path;
         }
 
         // 如果已经以 / 开头，直接返回
         if (path.startsWith("/")) {
-            console.log("[DEBUG] normalizeImagePath - already starts with /");
             return path;
         }
 
         // 如果是 assets/ 开头，添加前缀 /
         if (path.startsWith("assets/")) {
             const normalizedPath = "/" + path;
-            console.log("[DEBUG] normalizeImagePath - normalized to:", normalizedPath);
             return normalizedPath;
         }
 
         // 其他情况，直接返回原路径
-        console.log("[DEBUG] normalizeImagePath - returning original path");
         return path;
     }
 
@@ -1143,18 +1022,15 @@ export default class ImageWaterfallGallery extends Plugin {
      * 思源笔记的时间戳格式为 YYYYMMDDHHmmss，如 "20251224190738"
      */
     private parseTimestamp(timestamp: string): Date {
-        console.log("[DEBUG] parseTimestamp - input:", timestamp, "type:", typeof timestamp);
 
         // 如果已经是有效的日期字符串或数字，直接转换
         if (!timestamp || timestamp === "") {
-            console.log("[DEBUG] parseTimestamp - empty timestamp, using current date");
             return new Date();
         }
 
         // 尝试直接转换（可能是标准格式）
         const directDate = new Date(timestamp);
         if (!isNaN(directDate.getTime())) {
-            console.log("[DEBUG] parseTimestamp - direct conversion successful:", directDate);
             return directDate;
         }
 
@@ -1169,11 +1045,9 @@ export default class ImageWaterfallGallery extends Plugin {
             const second = parseInt(timestampStr.substring(12, 14));
 
             const parsedDate = new Date(year, month, day, hour, minute, second);
-            console.log("[DEBUG] parseTimestamp - parsed from format:", parsedDate);
             return parsedDate;
         }
 
-        console.log("[DEBUG] parseTimestamp - unable to parse, using current date");
         return new Date();
     }
 
@@ -1237,17 +1111,15 @@ export default class ImageWaterfallGallery extends Plugin {
      * 显示画廊管理界面
      */
     private async showGalleryManagement() {
-        console.log("[DEBUG] showGalleryManagement called");
 
         // 如果已经有管理界面，先销毁
         this.destroyGalleryManagement();
 
         // 查询所有画廊文件
         const galleryFiles = await this.queryAllGalleryFiles();
-        console.log("[DEBUG] Found", galleryFiles.length, "gallery files");
 
         if (galleryFiles.length === 0) {
-            showMessage("未找到画廊文件");
+            showMessage(this.t("messageNoGalleryFiles", "未找到画廊文件"));
             return;
         }
 
@@ -1261,7 +1133,7 @@ export default class ImageWaterfallGallery extends Plugin {
 
         const title = document.createElement("span");
         title.className = "gallery-management-title";
-        title.textContent = "画廊文件管理";
+        title.textContent = this.t("managementTitle", "画廊文件管理");
 
         const closeBtn = document.createElement("button");
         closeBtn.className = "gallery-close-btn";
@@ -1276,15 +1148,15 @@ export default class ImageWaterfallGallery extends Plugin {
         sortContainer.className = "gallery-management-sort";
 
         const sortLabel = document.createElement("span");
-        sortLabel.textContent = "排序方式：";
+        sortLabel.textContent = this.t("sortLabel", "排序方式：");
         sortLabel.className = "gallery-management-sort-label";
 
         const sortSelect = document.createElement("select");
         sortSelect.className = "b3-select";
         sortSelect.innerHTML = `
-            <option value="date-desc" ${this.currentSortOrder === "date-desc" ? "selected" : ""}>创建日期（倒序）</option>
-            <option value="date-asc" ${this.currentSortOrder === "date-asc" ? "selected" : ""}>创建日期（正序）</option>
-            <option value="reference-order" ${this.currentSortOrder === "reference-order" ? "selected" : ""}>引用顺序</option>
+            <option value="date-desc" ${this.currentSortOrder === "date-desc" ? "selected" : ""}>${this.t("sortDateDesc", "创建日期（倒序）")}</option>
+            <option value="date-asc" ${this.currentSortOrder === "date-asc" ? "selected" : ""}>${this.t("sortDateAsc", "创建日期（正序）")}</option>
+            <option value="reference-order" ${this.currentSortOrder === "reference-order" ? "selected" : ""}>${this.t("sortReferenceOrder", "引用顺序")}</option>
         `;
 
         sortSelect.onchange = () => {
@@ -1335,7 +1207,6 @@ export default class ImageWaterfallGallery extends Plugin {
      * 销毁画廊管理界面
      */
     private destroyGalleryManagement() {
-        console.log("[DEBUG] destroyGalleryManagement called");
         if (this.galleryManagementOverlay) {
             this.galleryManagementOverlay.remove();
             this.galleryManagementOverlay = null;
@@ -1359,19 +1230,23 @@ export default class ImageWaterfallGallery extends Plugin {
         const dateSpan = document.createElement("span");
         dateSpan.className = "gallery-file-date";
         const date = this.parseTimestamp(file.created);
-        console.log("[DEBUG] createGalleryFileItem - raw created:", file.created, "parsed date:", date);
-        dateSpan.textContent = `创建于 ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+        dateSpan.textContent = this.t("galleryFileCreatedAt", "创建于 {date} {time}", {
+            date: date.toLocaleDateString(),
+            time: date.toLocaleTimeString(),
+        });
 
         const countSpan = document.createElement("span");
         countSpan.className = "gallery-file-count";
-        countSpan.textContent = `${file.imageCount} 张图片`;
+        countSpan.textContent = this.t("galleryFileImageCount", "{count} 张图片", {
+            count: file.imageCount,
+        });
 
         infoContainer.appendChild(dateSpan);
         infoContainer.appendChild(countSpan);
 
         const manageBtn = document.createElement("button");
         manageBtn.className = "b3-button b3-button--outline gallery-file-manage-btn";
-        manageBtn.textContent = "管理";
+        manageBtn.textContent = this.t("manage", "管理");
         manageBtn.onclick = () => {
             this.showSingleGalleryManagement(file);
         };
@@ -1387,14 +1262,12 @@ export default class ImageWaterfallGallery extends Plugin {
      * 显示单个画廊文件的管理界面
      */
     private async showSingleGalleryManagement(file: IGalleryFile) {
-        console.log("[DEBUG] showSingleGalleryManagement called for file:", file.id);
 
         // 销毁当前的管理界面
         this.destroyGalleryManagement();
 
         // 获取该画廊文件的详细图片信息
         const imageInfos = await this.getGalleryImageDetails(file.id);
-        console.log("[DEBUG] Found", imageInfos.length, "images in gallery");
 
         // 创建单个画廊管理界面覆盖层
         const overlay = document.createElement("div");
@@ -1406,7 +1279,7 @@ export default class ImageWaterfallGallery extends Plugin {
 
         const backBtn = document.createElement("button");
         backBtn.className = "b3-button b3-button--outline";
-        backBtn.textContent = "← 返回";
+        backBtn.textContent = this.t("back", "← 返回");
         backBtn.onclick = () => {
             this.showGalleryManagement();
         };
@@ -1443,7 +1316,6 @@ export default class ImageWaterfallGallery extends Plugin {
             const gridContainer = overlay.querySelector('.single-gallery-grid') as HTMLElement;
             if (gridContainer) {
                 gridContainer.scrollTop = 0;
-                console.log("[DEBUG] Reset grid scrollTop to 0");
             }
         }, 50);
     }
@@ -1457,21 +1329,23 @@ export default class ImageWaterfallGallery extends Plugin {
         infoBar.className = "single-gallery-info-bar";
 
         const infoText = document.createElement("span");
-        infoText.textContent = `共 ${imageInfos.length} 张图片`;
+        infoText.textContent = this.t("singleGalleryImageCount", "共 {count} 张图片", {
+            count: imageInfos.length,
+        });
         infoBar.appendChild(infoText);
 
         // 添加图片排序选择器
         const sortLabel = document.createElement("span");
-        sortLabel.textContent = "排序：";
+        sortLabel.textContent = this.t("imageSortLabel", "排序：");
         sortLabel.style.marginLeft = "20px";
         infoBar.appendChild(sortLabel);
 
         const sortSelect = document.createElement("select");
         sortSelect.className = "b3-select";
         sortSelect.innerHTML = `
-            <option value="block-order" ${this.currentImageSortOrder === "block-order" ? "selected" : ""}>块顺序</option>
-            <option value="path-asc" ${this.currentImageSortOrder === "path-asc" ? "selected" : ""}>路径（正序）</option>
-            <option value="path-desc" ${this.currentImageSortOrder === "path-desc" ? "selected" : ""}>路径（倒序）</option>
+            <option value="block-order" ${this.currentImageSortOrder === "block-order" ? "selected" : ""}>${this.t("imageSortBlockOrder", "块顺序")}</option>
+            <option value="path-asc" ${this.currentImageSortOrder === "path-asc" ? "selected" : ""}>${this.t("imageSortPathAsc", "路径（正序）")}</option>
+            <option value="path-desc" ${this.currentImageSortOrder === "path-desc" ? "selected" : ""}>${this.t("imageSortPathDesc", "路径（倒序）")}</option>
         `;
         sortSelect.onchange = () => {
             this.currentImageSortOrder = sortSelect.value as ImageSortOrder;
@@ -1481,7 +1355,7 @@ export default class ImageWaterfallGallery extends Plugin {
 
         // 添加操作说明
         const tipText = document.createElement("span");
-        tipText.textContent = "提示：添加或删除图片请直接编辑文档";
+        tipText.textContent = this.t("tipEditDoc", "提示：添加或删除图片请直接编辑文档");
         tipText.style.marginLeft = "auto";
         tipText.style.color = "var(--b3-theme-on-surface-light)";
         tipText.style.fontSize = "12px";
@@ -1506,14 +1380,12 @@ export default class ImageWaterfallGallery extends Plugin {
 
         // 立即重置scrollTop，防止浏览器自动滚动
         gridContainer.scrollTop = 0;
-        console.log("[DEBUG] Immediately reset grid scrollTop to 0 in addSingleGalleryContent");
     }
 
     /**
      * 创建图片管理项
      */
     private createImageManagementItem(imageInfo: IImageInfo, file: IGalleryFile): HTMLElement {
-        console.log("[DEBUG] createImageManagementItem - imageInfo:", imageInfo);
 
         const item = document.createElement("div");
         item.className = "image-management-item";
@@ -1525,9 +1397,8 @@ export default class ImageWaterfallGallery extends Plugin {
         const img = document.createElement("img");
         // 处理图片路径：确保路径格式正确
         const imageSrc = this.normalizeImagePath(imageInfo.src);
-        console.log("[DEBUG] createImageManagementItem - original src:", imageInfo.src, "normalized src:", imageSrc);
         img.src = imageSrc;
-        img.alt = "图片预览";
+        img.alt = this.t("imagePreviewAlt", "图片预览");
         // 移除 lazy loading 以确保图片立即加载
 
         // 添加加载中状态
@@ -1535,17 +1406,15 @@ export default class ImageWaterfallGallery extends Plugin {
 
         // 添加加载成功处理
         img.onload = () => {
-            console.log("[DEBUG] Image loaded successfully:", imageSrc);
             imgPreview.classList.remove("loading");
             imgPreview.classList.add("loaded");
         };
 
         // 添加加载失败处理
         img.onerror = () => {
-            console.error("[DEBUG] Image failed to load:", imageSrc);
             imgPreview.classList.remove("loading");
             imgPreview.classList.add("error");
-            img.alt = "图片加载失败";
+            img.alt = this.t("imageLoadFailedAlt", "图片加载失败");
         };
 
         img.onclick = () => {
@@ -1566,7 +1435,7 @@ export default class ImageWaterfallGallery extends Plugin {
 
         const blockSpan = document.createElement("div");
         blockSpan.className = "image-block-info";
-        blockSpan.textContent = `块ID: ${imageInfo.blockId}`;
+        blockSpan.textContent = `${this.t("blockIdLabel", "块ID")}: ${imageInfo.blockId}`;
 
         infoContainer.appendChild(pathSpan);
         infoContainer.appendChild(blockSpan);
@@ -1577,26 +1446,16 @@ export default class ImageWaterfallGallery extends Plugin {
 
         const deleteBtn = document.createElement("button");
         deleteBtn.className = "b3-button b3-button--error";
-        deleteBtn.textContent = "删除";
+        deleteBtn.textContent = this.t("delete", "删除");
         deleteBtn.onclick = async () => {
             // 第一次确认：详细说明删除操作
-            const firstConfirm = confirm(
-                `⚠️ 警告：删除图片引用\n\n` +
-                `即将删除以下图片的引用：\n${imageInfo.src}\n\n` +
-                `注意：\n` +
-                `• 此操作将从文档中删除该图片的 Markdown 引用\n` +
-                `• 附件文件本身不会被删除，仍保留在 assets 目录中\n` +
-                `• 如果该块只包含此图片，整个块将被删除\n\n` +
-                `是否继续？`
-            );
+            const firstConfirm = confirm(this.t("confirmDeleteImageDetail", "⚠️ 警告：删除图片引用\n\n即将删除以下图片的引用：\n{src}\n\n注意：\n• 此操作将从文档中删除该图片的 Markdown 引用\n• 附件文件本身不会被删除，仍保留在 assets 目录中\n• 如果该块只包含此图片，整个块将被删除\n\n是否继续？", {
+                src: imageInfo.src,
+            }));
 
             if (firstConfirm) {
                 // 第二次确认：最终确认
-                const secondConfirm = confirm(
-                    `⚠️ 最终确认\n\n` +
-                    `确定要删除这张图片的引用吗？\n` +
-                    `此操作不可撤销！`
-                );
+                const secondConfirm = confirm(this.t("confirmDeleteImageFinal", "⚠️ 最终确认\n\n确定要删除这张图片的引用吗？\n此操作不可撤销！"));
 
                 if (secondConfirm) {
                     await this.deleteImageReference(imageInfo, file);
@@ -1623,7 +1482,7 @@ export default class ImageWaterfallGallery extends Plugin {
             const blockResult = await this.sqlQuery(blockSql);
 
             if (blockResult.length === 0) {
-                showMessage("未找到图片所在的块");
+                showMessage(this.t("blockNotFound", "未找到图片所在的块"));
                 return;
             }
 
@@ -1639,10 +1498,12 @@ export default class ImageWaterfallGallery extends Plugin {
                 });
 
                 if (deleteResponse.code === 0) {
-                    showMessage("图片引用已删除");
+                    showMessage(this.t("imageDeleted", "图片引用已删除"));
                     this.showSingleGalleryManagement(file);
                 } else {
-                    showMessage(`删除失败: ${deleteResponse.msg}`);
+                    showMessage(this.t("deleteFailed", "删除失败: {reason}", {
+                        reason: deleteResponse.msg,
+                    }));
                 }
             } else {
                 // 更新块内容
@@ -1653,15 +1514,16 @@ export default class ImageWaterfallGallery extends Plugin {
                 });
 
                 if (updateResponse.code === 0) {
-                    showMessage("图片引用已删除");
+                    showMessage(this.t("imageDeleted", "图片引用已删除"));
                     this.showSingleGalleryManagement(file);
                 } else {
-                    showMessage(`删除失败: ${updateResponse.msg}`);
+                    showMessage(this.t("deleteFailed", "删除失败: {reason}", {
+                        reason: updateResponse.msg,
+                    }));
                 }
             }
         } catch (error) {
-            console.error("[DEBUG] Error deleting image reference:", error);
-            showMessage("删除图片引用失败");
+            showMessage(this.t("deleteImageReferenceFailed", "删除图片引用失败"));
         }
     }
 }
