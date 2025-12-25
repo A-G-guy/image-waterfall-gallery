@@ -2,6 +2,7 @@
 
 ## v1.1.0 (2025-12-25)
 
+- 移除 plugin.json funding部分
 - 修复 README 中英文互链为完整 GitHub 链接
 - 修复 README 中“添加标签”的操作说明
 - 移除 `index.ts` 中大量调试日志输出
