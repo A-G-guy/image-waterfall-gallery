@@ -52,14 +52,6 @@ export default class ImageWaterfallGallery extends Plugin {
     private galleryLoadedForRootId: string = ""; // 记录当前已加载画廊的文档 ID
     private galleryEscapeHandler: ((e: KeyboardEvent) => void) | null = null;
 
-    private t(key: string, fallback: string, vars?: Record<string, string | number>): string {
-        const source = (this.i18n as Record<string, string | undefined>)?.[key] ?? fallback;
-        if (!vars) {
-            return source;
-        }
-        return source.replace(/\{(\w+)\}/g, (_, k) => vars[k]?.toString() ?? "");
-    }
-
     async onload() {
 
         // 初始化设置
@@ -126,9 +118,9 @@ export default class ImageWaterfallGallery extends Plugin {
         const imageOrderSelect = document.createElement("select");
         imageOrderSelect.className = "b3-select fn__flex-center";
         imageOrderSelect.innerHTML = `
-            <option value="random" ${this.settings.imageOrder === "random" ? "selected" : ""}>${this.t("imageOrderRandom", "随机顺序")}</option>
-            <option value="sequential" ${this.settings.imageOrder === "sequential" ? "selected" : ""}>${this.t("imageOrderSequential", "顺序")}</option>
-            <option value="reverse" ${this.settings.imageOrder === "reverse" ? "selected" : ""}>${this.t("imageOrderReverse", "倒序")}</option>
+            <option value="random" ${this.settings.imageOrder === "random" ? "selected" : ""}>${this.i18n.imageOrderRandom}</option>
+            <option value="sequential" ${this.settings.imageOrder === "sequential" ? "selected" : ""}>${this.i18n.imageOrderSequential}</option>
+            <option value="reverse" ${this.settings.imageOrder === "reverse" ? "selected" : ""}>${this.i18n.imageOrderReverse}</option>
         `;
 
         const imageWidthDesktopInput = document.createElement("input");
@@ -149,14 +141,14 @@ export default class ImageWaterfallGallery extends Plugin {
 
         const galleryManagementBtn = document.createElement("button");
         galleryManagementBtn.className = "b3-button b3-button--outline";
-        galleryManagementBtn.textContent = this.t("manageGalleryFiles", "管理画廊文件");
+        galleryManagementBtn.textContent = this.i18n.manageGalleryFiles;
         galleryManagementBtn.onclick = () => {
             this.showGalleryManagement();
         };
 
         const manualDetectBtn = document.createElement("button");
         manualDetectBtn.className = "b3-button b3-button--outline";
-        manualDetectBtn.textContent = this.t("manualDetectGallery", "手动检测画廊");
+        manualDetectBtn.textContent = this.i18n.manualDetectGallery;
         manualDetectBtn.onclick = async () => {
             await this.manualDetectGallery();
         };
@@ -167,43 +159,43 @@ export default class ImageWaterfallGallery extends Plugin {
                 this.settings.imageWidthDesktop = parseInt(imageWidthDesktopInput.value);
                 this.settings.imageWidthMobile = parseInt(imageWidthMobileInput.value);
                 this.saveData(STORAGE_NAME, this.settings);
-                showMessage(this.t("settingsSaved", "设置已保存"));
+                showMessage(this.i18n.settingsSaved);
             }
         });
 
         this.setting.addItem({
-            title: this.t("settingsPluginVersion", "插件版本"),
-            description: this.t("settingsPluginVersionDesc", "当前插件版本号"),
+            title: this.i18n.settingsPluginVersion,
+            description: this.i18n.settingsPluginVersionDesc,
             actionElement: versionDisplay,
         });
 
         this.setting.addItem({
-            title: this.t("settingsImageOrder", "图片顺序"),
-            description: this.t("settingsImageOrderDesc", "设置图片在瀑布流中的显示顺序"),
+            title: this.i18n.settingsImageOrder,
+            description: this.i18n.settingsImageOrderDesc,
             actionElement: imageOrderSelect,
         });
 
         this.setting.addItem({
-            title: this.t("settingsDesktopWidth", "桌面端图片宽度（像素）"),
-            description: this.t("settingsDesktopWidthDesc", "设置桌面端瀑布流中图片的宽度，范围 200-600"),
+            title: this.i18n.settingsDesktopWidth,
+            description: this.i18n.settingsDesktopWidthDesc,
             actionElement: imageWidthDesktopInput,
         });
 
         this.setting.addItem({
-            title: this.t("settingsMobileWidth", "移动端图片宽度（像素）"),
-            description: this.t("settingsMobileWidthDesc", "设置移动端瀑布流中图片的宽度，范围 200-600"),
+            title: this.i18n.settingsMobileWidth,
+            description: this.i18n.settingsMobileWidthDesc,
             actionElement: imageWidthMobileInput,
         });
 
         this.setting.addItem({
-            title: this.t("settingsGalleryManagement", "画廊文件管理"),
-            description: this.t("settingsGalleryManagementDesc", "查看和管理所有画廊文件"),
+            title: this.i18n.settingsGalleryManagement,
+            description: this.i18n.settingsGalleryManagementDesc,
             actionElement: galleryManagementBtn,
         });
 
         this.setting.addItem({
-            title: this.t("settingsManualDetection", "手动检测画廊"),
-            description: this.t("settingsManualDetectionDesc", "扫描所有文档并显示画廊列表（SQL + API 双重保障，宽松容错）"),
+            title: this.i18n.settingsManualDetection,
+            description: this.i18n.settingsManualDetectionDesc,
             actionElement: manualDetectBtn,
         });
     }
@@ -303,12 +295,12 @@ export default class ImageWaterfallGallery extends Plugin {
 
         try {
             // 显示开始检测的消息
-            showMessage(this.t("messageScanStart", "开始扫描所有文档..."));
+            showMessage(this.i18n.messageScanStart);
 
             // 调用画廊管理界面，会自动使用增强版的查询方法（SQL + API 双重保障）
             await this.showGalleryManagement();
         } catch (error) {
-            showMessage(this.t("messageScanFailedPrefix", "✗ 检测失败：") + (error as Error).message);
+            showMessage(this.i18n.messageScanFailedPrefix + (error as Error).message);
         }
     }
 
@@ -478,7 +470,7 @@ export default class ImageWaterfallGallery extends Plugin {
         const images = await this.extractImages(rootId);
 
         if (images.length === 0) {
-            showMessage(this.t("messageNoImages", "当前文档无图片"));
+            showMessage(this.i18n.messageNoImages);
             return;
         }
 
@@ -830,7 +822,7 @@ export default class ImageWaterfallGallery extends Plugin {
 
                 galleryFiles.push({
                     id: row.id,
-                    name: row.content || this.t("untitledDocument", "未命名文档"),
+                    name: row.content || this.i18n.untitledDocument,
                     created: row.created,
                     updated: row.updated,
                     imageCount: imageCount,
@@ -847,7 +839,7 @@ export default class ImageWaterfallGallery extends Plugin {
      * 通过 API 遍历所有文档查询画廊文件（兜底方案）
      */
     private async queryAllGalleryFilesByAPI(): Promise<IGalleryFile[]> {
-        showMessage(this.t("messageScanningDocs", "正在扫描所有文档..."));
+        showMessage(this.i18n.messageScanningDocs);
 
         try {
             // 查询所有文档 ID
@@ -855,7 +847,7 @@ export default class ImageWaterfallGallery extends Plugin {
             const allDocs = await this.sqlQuery(sql);
 
             if (allDocs.length === 0) {
-                showMessage(this.t("messageNoDocsFound", "未找到任何文档"));
+                showMessage(this.i18n.messageNoDocsFound);
                 return [];
             }
 
@@ -868,10 +860,9 @@ export default class ImageWaterfallGallery extends Plugin {
 
                 // 每扫描 10 个文档显示一次进度
                 if (scannedCount % 10 === 0) {
-                    showMessage(this.t("messageScanProgress", "正在扫描... {current}/{total}", {
-                        current: scannedCount,
-                        total: allDocs.length,
-                    }));
+                    showMessage((this.i18n.messageScanProgress as string)
+                        .replace("{current}", scannedCount.toString())
+                        .replace("{total}", allDocs.length.toString()));
                 }
 
                 try {
@@ -890,7 +881,7 @@ export default class ImageWaterfallGallery extends Plugin {
 
                             galleryFiles.push({
                                 id: doc.id,
-                                name: doc.content || this.t("untitledDocument", "未命名文档"),
+                                name: doc.content || this.i18n.untitledDocument,
                                 created: doc.created,
                                 updated: doc.updated,
                                 imageCount: imageCount,
@@ -902,12 +893,11 @@ export default class ImageWaterfallGallery extends Plugin {
                 }
             }
 
-            showMessage(this.t("messageScanComplete", "扫描完成，找到 {count} 个画廊文档", {
-                count: galleryFiles.length,
-            }));
+            showMessage((this.i18n.messageScanComplete as string)
+                .replace("{count}", galleryFiles.length.toString()));
             return galleryFiles;
         } catch (error) {
-            showMessage(this.t("messageAPIScanFailed", "API 扫描失败"));
+            showMessage(this.i18n.messageAPIScanFailed);
             return [];
         }
     }
@@ -1119,7 +1109,7 @@ export default class ImageWaterfallGallery extends Plugin {
         const galleryFiles = await this.queryAllGalleryFiles();
 
         if (galleryFiles.length === 0) {
-            showMessage(this.t("messageNoGalleryFiles", "未找到画廊文件"));
+            showMessage(this.i18n.messageNoGalleryFiles);
             return;
         }
 
@@ -1133,7 +1123,7 @@ export default class ImageWaterfallGallery extends Plugin {
 
         const title = document.createElement("span");
         title.className = "gallery-management-title";
-        title.textContent = this.t("managementTitle", "画廊文件管理");
+        title.textContent = this.i18n.managementTitle;
 
         const closeBtn = document.createElement("button");
         closeBtn.className = "gallery-close-btn";
@@ -1148,15 +1138,15 @@ export default class ImageWaterfallGallery extends Plugin {
         sortContainer.className = "gallery-management-sort";
 
         const sortLabel = document.createElement("span");
-        sortLabel.textContent = this.t("sortLabel", "排序方式：");
+        sortLabel.textContent = this.i18n.sortLabel;
         sortLabel.className = "gallery-management-sort-label";
 
         const sortSelect = document.createElement("select");
         sortSelect.className = "b3-select";
         sortSelect.innerHTML = `
-            <option value="date-desc" ${this.currentSortOrder === "date-desc" ? "selected" : ""}>${this.t("sortDateDesc", "创建日期（倒序）")}</option>
-            <option value="date-asc" ${this.currentSortOrder === "date-asc" ? "selected" : ""}>${this.t("sortDateAsc", "创建日期（正序）")}</option>
-            <option value="reference-order" ${this.currentSortOrder === "reference-order" ? "selected" : ""}>${this.t("sortReferenceOrder", "引用顺序")}</option>
+            <option value="date-desc" ${this.currentSortOrder === "date-desc" ? "selected" : ""}>${this.i18n.sortDateDesc}</option>
+            <option value="date-asc" ${this.currentSortOrder === "date-asc" ? "selected" : ""}>${this.i18n.sortDateAsc}</option>
+            <option value="reference-order" ${this.currentSortOrder === "reference-order" ? "selected" : ""}>${this.i18n.sortReferenceOrder}</option>
         `;
 
         sortSelect.onchange = () => {
@@ -1230,23 +1220,21 @@ export default class ImageWaterfallGallery extends Plugin {
         const dateSpan = document.createElement("span");
         dateSpan.className = "gallery-file-date";
         const date = this.parseTimestamp(file.created);
-        dateSpan.textContent = this.t("galleryFileCreatedAt", "创建于 {date} {time}", {
-            date: date.toLocaleDateString(),
-            time: date.toLocaleTimeString(),
-        });
+        dateSpan.textContent = (this.i18n.galleryFileCreatedAt as string)
+            .replace("{date}", date.toLocaleDateString())
+            .replace("{time}", date.toLocaleTimeString());
 
         const countSpan = document.createElement("span");
         countSpan.className = "gallery-file-count";
-        countSpan.textContent = this.t("galleryFileImageCount", "{count} 张图片", {
-            count: file.imageCount,
-        });
+        countSpan.textContent = (this.i18n.galleryFileImageCount as string)
+            .replace("{count}", file.imageCount.toString());
 
         infoContainer.appendChild(dateSpan);
         infoContainer.appendChild(countSpan);
 
         const manageBtn = document.createElement("button");
         manageBtn.className = "b3-button b3-button--outline gallery-file-manage-btn";
-        manageBtn.textContent = this.t("manage", "管理");
+        manageBtn.textContent = this.i18n.manage;
         manageBtn.onclick = () => {
             this.showSingleGalleryManagement(file);
         };
@@ -1279,7 +1267,7 @@ export default class ImageWaterfallGallery extends Plugin {
 
         const backBtn = document.createElement("button");
         backBtn.className = "b3-button b3-button--outline";
-        backBtn.textContent = this.t("back", "← 返回");
+        backBtn.textContent = this.i18n.back;
         backBtn.onclick = () => {
             this.showGalleryManagement();
         };
@@ -1329,23 +1317,22 @@ export default class ImageWaterfallGallery extends Plugin {
         infoBar.className = "single-gallery-info-bar";
 
         const infoText = document.createElement("span");
-        infoText.textContent = this.t("singleGalleryImageCount", "共 {count} 张图片", {
-            count: imageInfos.length,
-        });
+        infoText.textContent = (this.i18n.singleGalleryImageCount as string)
+            .replace("{count}", imageInfos.length.toString());
         infoBar.appendChild(infoText);
 
         // 添加图片排序选择器
         const sortLabel = document.createElement("span");
-        sortLabel.textContent = this.t("imageSortLabel", "排序：");
+        sortLabel.textContent = this.i18n.imageSortLabel;
         sortLabel.style.marginLeft = "20px";
         infoBar.appendChild(sortLabel);
 
         const sortSelect = document.createElement("select");
         sortSelect.className = "b3-select";
         sortSelect.innerHTML = `
-            <option value="block-order" ${this.currentImageSortOrder === "block-order" ? "selected" : ""}>${this.t("imageSortBlockOrder", "块顺序")}</option>
-            <option value="path-asc" ${this.currentImageSortOrder === "path-asc" ? "selected" : ""}>${this.t("imageSortPathAsc", "路径（正序）")}</option>
-            <option value="path-desc" ${this.currentImageSortOrder === "path-desc" ? "selected" : ""}>${this.t("imageSortPathDesc", "路径（倒序）")}</option>
+            <option value="block-order" ${this.currentImageSortOrder === "block-order" ? "selected" : ""}>${this.i18n.imageSortBlockOrder}</option>
+            <option value="path-asc" ${this.currentImageSortOrder === "path-asc" ? "selected" : ""}>${this.i18n.imageSortPathAsc}</option>
+            <option value="path-desc" ${this.currentImageSortOrder === "path-desc" ? "selected" : ""}>${this.i18n.imageSortPathDesc}</option>
         `;
         sortSelect.onchange = () => {
             this.currentImageSortOrder = sortSelect.value as ImageSortOrder;
@@ -1355,7 +1342,7 @@ export default class ImageWaterfallGallery extends Plugin {
 
         // 添加操作说明
         const tipText = document.createElement("span");
-        tipText.textContent = this.t("tipEditDoc", "提示：添加或删除图片请直接编辑文档");
+        tipText.textContent = this.i18n.tipEditDoc;
         tipText.style.marginLeft = "auto";
         tipText.style.color = "var(--b3-theme-on-surface-light)";
         tipText.style.fontSize = "12px";
@@ -1398,7 +1385,7 @@ export default class ImageWaterfallGallery extends Plugin {
         // 处理图片路径：确保路径格式正确
         const imageSrc = this.normalizeImagePath(imageInfo.src);
         img.src = imageSrc;
-        img.alt = this.t("imagePreviewAlt", "图片预览");
+        img.alt = this.i18n.imagePreviewAlt;
         // 移除 lazy loading 以确保图片立即加载
 
         // 添加加载中状态
@@ -1414,7 +1401,7 @@ export default class ImageWaterfallGallery extends Plugin {
         img.onerror = () => {
             imgPreview.classList.remove("loading");
             imgPreview.classList.add("error");
-            img.alt = this.t("imageLoadFailedAlt", "图片加载失败");
+            img.alt = this.i18n.imageLoadFailedAlt;
         };
 
         img.onclick = () => {
@@ -1435,7 +1422,7 @@ export default class ImageWaterfallGallery extends Plugin {
 
         const blockSpan = document.createElement("div");
         blockSpan.className = "image-block-info";
-        blockSpan.textContent = `${this.t("blockIdLabel", "块ID")}: ${imageInfo.blockId}`;
+        blockSpan.textContent = `${this.i18n.blockIdLabel}: ${imageInfo.blockId}`;
 
         infoContainer.appendChild(pathSpan);
         infoContainer.appendChild(blockSpan);
@@ -1446,16 +1433,15 @@ export default class ImageWaterfallGallery extends Plugin {
 
         const deleteBtn = document.createElement("button");
         deleteBtn.className = "b3-button b3-button--error";
-        deleteBtn.textContent = this.t("delete", "删除");
+        deleteBtn.textContent = this.i18n.delete;
         deleteBtn.onclick = async () => {
             // 第一次确认：详细说明删除操作
-            const firstConfirm = confirm(this.t("confirmDeleteImageDetail", "⚠️ 警告：删除图片引用\n\n即将删除以下图片的引用：\n{src}\n\n注意：\n• 此操作将从文档中删除该图片的 Markdown 引用\n• 附件文件本身不会被删除，仍保留在 assets 目录中\n• 如果该块只包含此图片，整个块将被删除\n\n是否继续？", {
-                src: imageInfo.src,
-            }));
+            const firstConfirm = confirm((this.i18n.confirmDeleteImageDetail as string)
+                .replace("{src}", imageInfo.src));
 
             if (firstConfirm) {
                 // 第二次确认：最终确认
-                const secondConfirm = confirm(this.t("confirmDeleteImageFinal", "⚠️ 最终确认\n\n确定要删除这张图片的引用吗？\n此操作不可撤销！"));
+                const secondConfirm = confirm(this.i18n.confirmDeleteImageFinal);
 
                 if (secondConfirm) {
                     await this.deleteImageReference(imageInfo, file);
@@ -1482,7 +1468,7 @@ export default class ImageWaterfallGallery extends Plugin {
             const blockResult = await this.sqlQuery(blockSql);
 
             if (blockResult.length === 0) {
-                showMessage(this.t("blockNotFound", "未找到图片所在的块"));
+                showMessage(this.i18n.blockNotFound);
                 return;
             }
 
@@ -1498,12 +1484,11 @@ export default class ImageWaterfallGallery extends Plugin {
                 });
 
                 if (deleteResponse.code === 0) {
-                    showMessage(this.t("imageDeleted", "图片引用已删除"));
+                    showMessage(this.i18n.imageDeleted);
                     this.showSingleGalleryManagement(file);
                 } else {
-                    showMessage(this.t("deleteFailed", "删除失败: {reason}", {
-                        reason: deleteResponse.msg,
-                    }));
+                    showMessage((this.i18n.deleteFailed as string)
+                        .replace("{reason}", deleteResponse.msg));
                 }
             } else {
                 // 更新块内容
@@ -1514,16 +1499,15 @@ export default class ImageWaterfallGallery extends Plugin {
                 });
 
                 if (updateResponse.code === 0) {
-                    showMessage(this.t("imageDeleted", "图片引用已删除"));
+                    showMessage(this.i18n.imageDeleted);
                     this.showSingleGalleryManagement(file);
                 } else {
-                    showMessage(this.t("deleteFailed", "删除失败: {reason}", {
-                        reason: updateResponse.msg,
-                    }));
+                    showMessage((this.i18n.deleteFailed as string)
+                        .replace("{reason}", updateResponse.msg));
                 }
             }
         } catch (error) {
-            showMessage(this.t("deleteImageReferenceFailed", "删除图片引用失败"));
+            showMessage(this.i18n.deleteImageReferenceFailed);
         }
     }
 }
